@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { pdtQuery, professoresQuery, turmaDisciplinaQuery } from "@/lib/queries";
+import { pdtQuery, professoresQuery, turmaDisciplinaQuery, turmasQuery } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/admin/vinculos")({
   head: () => ({ meta: [{ title: "Vínculos — Admin" }] }),
@@ -26,25 +26,43 @@ export const Route = createFileRoute("/_authenticated/admin/vinculos")({
 
 function Page() {
   const { data: profs } = useQuery(professoresQuery);
+  const { data: turmas } = useQuery(turmasQuery);
   const { data: td } = useQuery(turmaDisciplinaQuery);
   const { data: pdt } = useQuery(pdtQuery);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [profId, setProfId] = useState("");
+  const [turmaId, setTurmaId] = useState("");
   const [tdId, setTdId] = useState("");
 
+  // Disciplinas do currículo, filtradas pela turma selecionada
+  const disciplinasDaTurma = useMemo(() => {
+    return (td ?? [])
+      .filter((r) => r.turma_id === turmaId)
+      .map((r) => {
+        const d = r.disciplinas as unknown as { nome: string } | null;
+        return {
+          id: r.id, // id da linha em turma_disciplina, usado para criar o vínculo
+          disciplina_id: r.disciplina_id,
+          nome: d?.nome ?? "",
+        };
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [td, turmaId]);
+
   const opcoesCurriculo = useMemo(() => {
-    return (td ?? []).map((r) => {
-      const d = r.disciplinas as unknown as { nome: string } | null;
-      const t = r.turmas as unknown as { nome: string } | null;
-      return {
-        id: r.id,
-        turma_id: r.turma_id,
-        disciplina_id: r.disciplina_id,
-        label: `${t?.nome} • ${d?.nome}`,
-      };
-    });
+    return (td ?? []).map((r) => ({
+      id: r.id,
+      turma_id: r.turma_id,
+      disciplina_id: r.disciplina_id,
+    }));
   }, [td]);
+
+  const resetForm = () => {
+    setProfId("");
+    setTurmaId("");
+    setTdId("");
+  };
 
   const add = useMutation({
     mutationFn: async () => {
@@ -60,8 +78,7 @@ function Page() {
     onSuccess: () => {
       qc.invalidateQueries();
       setOpen(false);
-      setProfId("");
-      setTdId("");
+      resetForm();
       toast.success("Vínculo criado");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -80,7 +97,13 @@ function Page() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Professores × Turmas × Disciplinas</CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(v) => {
+            setOpen(v);
+            if (!v) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-1 h-4 w-4" /> Novo vínculo
@@ -106,20 +129,50 @@ function Page() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div>
-                <Label>Turma • Disciplina</Label>
-                <Select value={tdId} onValueChange={setTdId}>
+                <Label>Turma</Label>
+                <Select
+                  value={turmaId}
+                  onValueChange={(v) => {
+                    setTurmaId(v);
+                    setTdId(""); // limpa a disciplina ao trocar de turma
+                  }}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Escolha" />
+                    <SelectValue placeholder="Escolha a turma" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {opcoesCurriculo.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>
-                        {o.label}
+                    {turmas?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome} ({t.segmento})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label>Disciplina</Label>
+                <Select value={tdId} onValueChange={setTdId} disabled={!turmaId}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={turmaId ? "Escolha a disciplina" : "Escolha a turma primeiro"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {disciplinasDaTurma.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {turmaId && disciplinasDaTurma.length === 0 && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Essa turma ainda não tem disciplinas cadastradas no currículo.
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>
