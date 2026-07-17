@@ -9,38 +9,198 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminVinculosRouteImport } from './routes/_authenticated/admin.vinculos'
+import { Route as AuthenticatedAdminTurmasRouteImport } from './routes/_authenticated/admin.turmas'
+import { Route as AuthenticatedAdminProfessoresRouteImport } from './routes/_authenticated/admin.professores'
+import { Route as AuthenticatedAdminEtapaRouteImport } from './routes/_authenticated/admin.etapa'
+import { Route as AuthenticatedAdminAcompanhamentoRouteImport } from './routes/_authenticated/admin.acompanhamento'
+import { Route as AuthenticatedAppRoteiroDisciplinaIdTurmaIdRouteImport } from './routes/_authenticated/app.roteiro.$disciplinaId.$turmaId'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminVinculosRoute =
+  AuthenticatedAdminVinculosRouteImport.update({
+    id: '/vinculos',
+    path: '/vinculos',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminTurmasRoute =
+  AuthenticatedAdminTurmasRouteImport.update({
+    id: '/turmas',
+    path: '/turmas',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminProfessoresRoute =
+  AuthenticatedAdminProfessoresRouteImport.update({
+    id: '/professores',
+    path: '/professores',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEtapaRoute = AuthenticatedAdminEtapaRouteImport.update({
+  id: '/etapa',
+  path: '/etapa',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminAcompanhamentoRoute =
+  AuthenticatedAdminAcompanhamentoRouteImport.update({
+    id: '/acompanhamento',
+    path: '/acompanhamento',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute =
+  AuthenticatedAppRoteiroDisciplinaIdTurmaIdRouteImport.update({
+    id: '/roteiro/$disciplinaId/$turmaId',
+    path: '/roteiro/$disciplinaId/$turmaId',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/app': typeof AuthenticatedAppRouteWithChildren
+  '/admin/acompanhamento': typeof AuthenticatedAdminAcompanhamentoRoute
+  '/admin/etapa': typeof AuthenticatedAdminEtapaRoute
+  '/admin/professores': typeof AuthenticatedAdminProfessoresRoute
+  '/admin/turmas': typeof AuthenticatedAdminTurmasRoute
+  '/admin/vinculos': typeof AuthenticatedAdminVinculosRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/app/': typeof AuthenticatedAppIndexRoute
+  '/app/roteiro/$disciplinaId/$turmaId': typeof AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/admin/acompanhamento': typeof AuthenticatedAdminAcompanhamentoRoute
+  '/admin/etapa': typeof AuthenticatedAdminEtapaRoute
+  '/admin/professores': typeof AuthenticatedAdminProfessoresRoute
+  '/admin/turmas': typeof AuthenticatedAdminTurmasRoute
+  '/admin/vinculos': typeof AuthenticatedAdminVinculosRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/app': typeof AuthenticatedAppIndexRoute
+  '/app/roteiro/$disciplinaId/$turmaId': typeof AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/_authenticated/admin/acompanhamento': typeof AuthenticatedAdminAcompanhamentoRoute
+  '/_authenticated/admin/etapa': typeof AuthenticatedAdminEtapaRoute
+  '/_authenticated/admin/professores': typeof AuthenticatedAdminProfessoresRoute
+  '/_authenticated/admin/turmas': typeof AuthenticatedAdminTurmasRoute
+  '/_authenticated/admin/vinculos': typeof AuthenticatedAdminVinculosRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/app/roteiro/$disciplinaId/$turmaId': typeof AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/app'
+    | '/admin/acompanhamento'
+    | '/admin/etapa'
+    | '/admin/professores'
+    | '/admin/turmas'
+    | '/admin/vinculos'
+    | '/admin/'
+    | '/app/'
+    | '/app/roteiro/$disciplinaId/$turmaId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin/acompanhamento'
+    | '/admin/etapa'
+    | '/admin/professores'
+    | '/admin/turmas'
+    | '/admin/vinculos'
+    | '/admin'
+    | '/app'
+    | '/app/roteiro/$disciplinaId/$turmaId'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/admin'
+    | '/_authenticated/app'
+    | '/_authenticated/admin/acompanhamento'
+    | '/_authenticated/admin/etapa'
+    | '/_authenticated/admin/professores'
+    | '/_authenticated/admin/turmas'
+    | '/_authenticated/admin/vinculos'
+    | '/_authenticated/admin/'
+    | '/_authenticated/app/'
+    | '/_authenticated/app/roteiro/$disciplinaId/$turmaId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +208,132 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/app/': {
+      id: '/_authenticated/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/vinculos': {
+      id: '/_authenticated/admin/vinculos'
+      path: '/vinculos'
+      fullPath: '/admin/vinculos'
+      preLoaderRoute: typeof AuthenticatedAdminVinculosRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/turmas': {
+      id: '/_authenticated/admin/turmas'
+      path: '/turmas'
+      fullPath: '/admin/turmas'
+      preLoaderRoute: typeof AuthenticatedAdminTurmasRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/professores': {
+      id: '/_authenticated/admin/professores'
+      path: '/professores'
+      fullPath: '/admin/professores'
+      preLoaderRoute: typeof AuthenticatedAdminProfessoresRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/etapa': {
+      id: '/_authenticated/admin/etapa'
+      path: '/etapa'
+      fullPath: '/admin/etapa'
+      preLoaderRoute: typeof AuthenticatedAdminEtapaRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/acompanhamento': {
+      id: '/_authenticated/admin/acompanhamento'
+      path: '/acompanhamento'
+      fullPath: '/admin/acompanhamento'
+      preLoaderRoute: typeof AuthenticatedAdminAcompanhamentoRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/app/roteiro/$disciplinaId/$turmaId': {
+      id: '/_authenticated/app/roteiro/$disciplinaId/$turmaId'
+      path: '/roteiro/$disciplinaId/$turmaId'
+      fullPath: '/app/roteiro/$disciplinaId/$turmaId'
+      preLoaderRoute: typeof AuthenticatedAppRoteiroDisciplinaIdTurmaIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAcompanhamentoRoute: typeof AuthenticatedAdminAcompanhamentoRoute
+  AuthenticatedAdminEtapaRoute: typeof AuthenticatedAdminEtapaRoute
+  AuthenticatedAdminProfessoresRoute: typeof AuthenticatedAdminProfessoresRoute
+  AuthenticatedAdminTurmasRoute: typeof AuthenticatedAdminTurmasRoute
+  AuthenticatedAdminVinculosRoute: typeof AuthenticatedAdminVinculosRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAcompanhamentoRoute: AuthenticatedAdminAcompanhamentoRoute,
+  AuthenticatedAdminEtapaRoute: AuthenticatedAdminEtapaRoute,
+  AuthenticatedAdminProfessoresRoute: AuthenticatedAdminProfessoresRoute,
+  AuthenticatedAdminTurmasRoute: AuthenticatedAdminTurmasRoute,
+  AuthenticatedAdminVinculosRoute: AuthenticatedAdminVinculosRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute: typeof AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute:
+    AuthenticatedAppRoteiroDisciplinaIdTurmaIdRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
