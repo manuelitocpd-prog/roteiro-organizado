@@ -79,19 +79,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Roteiros de Prova — Colégio Manuelito" },
+      { title: "Roteiros de Provas — Colégio Manuelito" },
       {
         name: "description",
         content:
           "Plataforma interna do Colégio Manuelito para envio, acompanhamento e exportação de roteiros de prova por turma e disciplina.",
       },
-      { property: "og:title", content: "Roteiros de Prova — Colégio Manuelito" },
+      { property: "og:title", content: "Roteiros de Provas — Colégio Manuelito" },
       {
         property: "og:description",
-        content: "Sistema interno de roteiros de prova do Colégio Manuelito.",
+        content: "Plataforma interna do Colégio Manuelito para envio, acompanhamento e exportação de roteiros de prova por turma e disciplina.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "Roteiros de Provas — Colégio Manuelito" },
+      { name: "twitter:description", content: "Plataforma interna do Colégio Manuelito para envio, acompanhamento e exportação de roteiros de prova por turma e disciplina." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d42d3a1-0495-4a88-b612-b0f2f8b4ad3a/id-preview-c6311487--6b9a38db-ae95-47df-8984-961602b6d81f.lovable.app-1784290025574.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9d42d3a1-0495-4a88-b612-b0f2f8b4ad3a/id-preview-c6311487--6b9a38db-ae95-47df-8984-961602b6d81f.lovable.app-1784290025574.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
