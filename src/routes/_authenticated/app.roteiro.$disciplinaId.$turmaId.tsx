@@ -39,9 +39,7 @@ function makeId() {
   return Math.random().toString(36).slice(2);
 }
 
-interface EditorItem extends ItemRoteiro {
-  _key: string;
-}
+type EditorItem = ItemRoteiro & { _key: string };
 
 function SortableRow({
   item,
