@@ -79,10 +79,6 @@ function Page() {
         toast.error("Nenhum roteiro enviado para esta turma.");
         return;
       }
-      const inicios = enviados.map((r) => r.data_inicio_realizacao).filter(Boolean) as string[];
-      const fins = enviados.map((r) => r.data_fim_realizacao).filter(Boolean) as string[];
-      const dataInicio = inicios.sort()[0] ?? null;
-      const dataFim = fins.sort().slice(-1)[0] ?? null;
 
       const ordered = disciplinas
         .map((d) => {
@@ -101,8 +97,8 @@ function Page() {
         segmento: turma.segmento,
         etapa: cfg.etapa_atual,
         tipoAvaliacao: cfg.tipo_avaliacao,
-        dataInicio,
-        dataFim,
+        dataInicio: cfg.data_inicio_realizacao ?? null,
+        dataFim: cfg.data_fim_realizacao ?? null,
         anoLetivo: cfg.ano_letivo,
         roteiros: ordered,
         logoUrl: logoAsset.url,
