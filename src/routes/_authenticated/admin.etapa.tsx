@@ -21,12 +21,16 @@ function Page() {
   const [etapa, setEtapa] = useState(1);
   const [tipo, setTipo] = useState<"parcial" | "global">("parcial");
   const [ano, setAno] = useState(2026);
+  const [dIni, setDIni] = useState("");
+  const [dFim, setDFim] = useState("");
 
   useEffect(() => {
     if (cfg) {
       setEtapa(cfg.etapa_atual);
       setTipo(cfg.tipo_avaliacao);
       setAno(cfg.ano_letivo);
+      setDIni(cfg.data_inicio_realizacao ?? "");
+      setDFim(cfg.data_fim_realizacao ?? "");
     }
   }, [cfg]);
 
@@ -34,7 +38,13 @@ function Page() {
     mutationFn: async () => {
       const { error } = await supabase
         .from("configuracao_etapa")
-        .update({ etapa_atual: etapa, tipo_avaliacao: tipo, ano_letivo: ano })
+        .update({
+          etapa_atual: etapa,
+          tipo_avaliacao: tipo,
+          ano_letivo: ano,
+          data_inicio_realizacao: dIni || null,
+          data_fim_realizacao: dFim || null,
+        })
         .eq("id", 1);
       if (error) throw error;
     },
@@ -82,9 +92,20 @@ function Page() {
           <Label>Ano letivo</Label>
           <Input type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} />
         </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="dini">Início da realização</Label>
+            <Input id="dini" type="date" value={dIni} onChange={(e) => setDIni(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="dfim">Fim da realização</Label>
+            <Input id="dfim" type="date" value={dFim} onChange={(e) => setDFim(e.target.value)} />
+          </div>
+        </div>
         <div className="rounded border bg-muted/40 p-3 text-xs text-muted-foreground">
-          Atenção: ao mudar a etapa ou o tipo, os roteiros da configuração anterior ficam travados
-          para os professores (só leitura). Você, como admin, ainda pode editá-los.
+          O período de realização vale para toda a escola nesta etapa. Ao mudar a etapa ou o tipo,
+          os roteiros da configuração anterior ficam travados para os professores (só leitura).
+          Você, como admin, ainda pode editá-los.
         </div>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           Salvar
@@ -93,3 +114,4 @@ function Page() {
     </Card>
   );
 }
+
