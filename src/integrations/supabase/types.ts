@@ -17,6 +17,8 @@ export type Database = {
       configuracao_etapa: {
         Row: {
           ano_letivo: number
+          data_fim_realizacao: string | null
+          data_inicio_realizacao: string | null
           etapa_atual: number
           id: number
           tipo_avaliacao: Database["public"]["Enums"]["tipo_avaliacao_enum"]
@@ -24,6 +26,8 @@ export type Database = {
         }
         Insert: {
           ano_letivo?: number
+          data_fim_realizacao?: string | null
+          data_inicio_realizacao?: string | null
           etapa_atual: number
           id: number
           tipo_avaliacao: Database["public"]["Enums"]["tipo_avaliacao_enum"]
@@ -31,6 +35,8 @@ export type Database = {
         }
         Update: {
           ano_letivo?: number
+          data_fim_realizacao?: string | null
+          data_inicio_realizacao?: string | null
           etapa_atual?: number
           id?: number
           tipo_avaliacao?: Database["public"]["Enums"]["tipo_avaliacao_enum"]
