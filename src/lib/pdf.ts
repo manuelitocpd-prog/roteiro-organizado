@@ -1,5 +1,11 @@
 import jsPDF from "jspdf";
 import type { ItemRoteiro } from "./types";
+import {
+  htmlToParagraphs,
+  isHtmlPayload,
+  itensToHtml,
+  type HtmlSeg,
+} from "./roteiro-html";
 
 export interface RoteiroPdfInput {
   disciplinaNome: string;
@@ -36,61 +42,69 @@ const TITLE_H_LINES = 3;
 // helvetica line-height helper (font size in pt → mm)
 const lh = (pt: number, factor = 1.18) => pt * 0.3528 * factor;
 
-// ---------- inline **bold** parser ----------
-interface Seg {
-  text: string;
-  bold: boolean;
-}
-function parseBold(text: string): Seg[] {
-  const out: Seg[] = [];
-  const re = /\*\*(.+?)\*\*/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index), bold: false });
-    out.push({ text: m[1], bold: true });
-    last = re.lastIndex;
-  }
-  if (last < text.length) out.push({ text: text.slice(last), bold: false });
-  return out;
+function styleName(bold: boolean, italic: boolean): string {
+  if (bold && italic) return "bolditalic";
+  if (bold) return "bold";
+  if (italic) return "italic";
+  return "normal";
 }
 
 // ---------- word-wrap with mixed styles ----------
 interface LineTok {
   text: string;
   bold: boolean;
+  italic: boolean;
+  underline: boolean;
   x: number; // relative to line start
+  w: number; // text width in mm
 }
 function wrapInline(
   doc: jsPDF,
-  segs: Seg[],
+  segs: HtmlSeg[],
   maxWidth: number,
   fontSize: number,
   fontName = "helvetica",
 ): LineTok[][] {
   const lines: LineTok[][] = [[]];
   let cx = 0;
-  const spaceWidth = (bold: boolean) => {
-    doc.setFont(fontName, bold ? "bold" : "normal");
+  const spaceWidth = (bold: boolean, italic: boolean) => {
+    doc.setFont(fontName, styleName(bold, italic));
     doc.setFontSize(fontSize);
     return doc.getTextWidth(" ");
   };
   for (const seg of segs) {
-    doc.setFont(fontName, seg.bold ? "bold" : "normal");
+    doc.setFont(fontName, styleName(seg.bold, seg.italic));
     doc.setFontSize(fontSize);
     const words = seg.text.split(/\s+/).filter(Boolean);
     words.forEach((w, i) => {
       const wW = doc.getTextWidth(w);
-      const sp = i === 0 && lines[lines.length - 1].length === 0 ? 0 : spaceWidth(seg.bold);
+      const sp =
+        i === 0 && lines[lines.length - 1].length === 0
+          ? 0
+          : spaceWidth(seg.bold, seg.italic);
       if (cx + sp + wW > maxWidth && lines[lines.length - 1].length > 0) {
         lines.push([]);
         cx = 0;
-        lines[lines.length - 1].push({ text: w, bold: seg.bold, x: 0 });
+        lines[lines.length - 1].push({
+          text: w,
+          bold: seg.bold,
+          italic: seg.italic,
+          underline: seg.underline,
+          x: 0,
+          w: wW,
+        });
         cx = wW;
       } else {
         const line = lines[lines.length - 1];
         if (line.length > 0) cx += sp;
-        line.push({ text: w, bold: seg.bold, x: cx });
+        line.push({
+          text: w,
+          bold: seg.bold,
+          italic: seg.italic,
+          underline: seg.underline,
+          x: cx,
+          w: wW,
+        });
         cx += wW;
       }
     });
@@ -110,11 +124,33 @@ function drawInlineLines(
   lines.forEach((line, i) => {
     const yy = y + (i + 1) * lineHeight - lineHeight * 0.25;
     for (const tok of line) {
-      doc.setFont(fontName, tok.bold ? "bold" : "normal");
+      doc.setFont(fontName, styleName(tok.bold, tok.italic));
       doc.setFontSize(fontSize);
       doc.text(tok.text, x + tok.x, yy);
+      if (tok.underline) {
+        const uy = yy + 0.6;
+        doc.setLineWidth(0.15);
+        doc.line(x + tok.x, uy, x + tok.x + tok.w, uy);
+      }
     }
   });
+}
+
+// Plain-text **bold** parser for the (still legacy) observacao field.
+function parseBoldToSegs(text: string): HtmlSeg[] {
+  const out: HtmlSeg[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last)
+      out.push({ text: text.slice(last, m.index), bold: false, italic: false, underline: false });
+    out.push({ text: m[1], bold: true, italic: false, underline: false });
+    last = re.lastIndex;
+  }
+  if (last < text.length)
+    out.push({ text: text.slice(last), bold: false, italic: false, underline: false });
+  return out;
 }
 
 // ---------- block model ----------
@@ -123,10 +159,7 @@ interface Block {
   draw: (doc: jsPDF, x: number, y: number) => void;
 }
 
-function buildBlocksForDisciplina(
-  doc: jsPDF,
-  r: RoteiroPdfInput,
-): Block[] {
+function buildBlocksForDisciplina(doc: jsPDF, r: RoteiroPdfInput): Block[] {
   const blocks: Block[] = [];
   const bodyPt = 9.5;
   const bodyLh = lh(bodyPt);
@@ -145,38 +178,23 @@ function buildBlocksForDisciplina(
     },
   });
 
-  for (const item of r.itens) {
-    if (item.tipo === "subtitulo") {
-      const lines = wrapInline(doc, [{ text: item.texto, bold: true }], CONTENT_W, bodyPt);
-      const h = lines.length * bodyLh + 0.4;
-      blocks.push({
-        height: h,
-        draw: (doc, x, y) => drawInlineLines(doc, lines, x, y, bodyPt, bodyLh),
-      });
-    } else {
-      // topico with "- " prefix
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(bodyPt);
-      const dashW = doc.getTextWidth("- ");
-      const segs = parseBold(item.texto);
-      const lines = wrapInline(doc, segs, CONTENT_W - dashW, bodyPt);
-      const h = Math.max(lines.length, 1) * bodyLh + 0.2;
-      blocks.push({
-        height: h,
-        draw: (doc, x, y) => {
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(bodyPt);
-          doc.text("- ", x, y + bodyLh * 0.75);
-          drawInlineLines(doc, lines, x + dashW, y, bodyPt, bodyLh);
-        },
-      });
-    }
+  // Body: HTML paragraphs (new format) or converted legacy items.
+  const html = isHtmlPayload(r.itens) ? r.itens[0].texto : itensToHtml(r.itens);
+  const paragraphs = htmlToParagraphs(html);
+
+  for (const p of paragraphs) {
+    const lines = wrapInline(doc, p.segs, CONTENT_W, bodyPt);
+    const h = Math.max(lines.length, 1) * bodyLh + 0.4;
+    blocks.push({
+      height: h,
+      draw: (doc, x, y) => drawInlineLines(doc, lines, x, y, bodyPt, bodyLh),
+    });
   }
 
   if (r.observacao?.trim()) {
-    const segs: Seg[] = [
-      { text: "OBS: ", bold: true },
-      ...parseBold(r.observacao.trim()).map((s) => ({ ...s })),
+    const segs: HtmlSeg[] = [
+      { text: "OBS: ", bold: true, italic: false, underline: false },
+      ...parseBoldToSegs(r.observacao.trim()),
     ];
     const lines = wrapInline(doc, segs, CONTENT_W, bodyPt);
     const h = lines.length * bodyLh + 0.4;
