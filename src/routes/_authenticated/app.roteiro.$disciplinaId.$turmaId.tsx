@@ -58,6 +58,7 @@ function Editor() {
   const [obs, setObs] = useState("");
   const [status, setStatus] = useState<"rascunho" | "enviado">("rascunho");
   const [isEmpty, setIsEmpty] = useState(true);
+  const [activeFmt, setActiveFmt] = useState({ bold: false, italic: false, underline: false });
   const locked =
     !!existing &&
     !!cfg &&
@@ -79,10 +80,29 @@ function Editor() {
   const exec = (cmd: "bold" | "italic" | "underline") => {
     editorRef.current?.focus();
     document.execCommand(cmd, false);
+    updateActiveFmt();
   };
+
+  const updateActiveFmt = () => {
+    // Só atualiza se a seleção atual estiver dentro do editor
+    const sel = document.getSelection();
+    const anchorNode = sel?.anchorNode;
+    if (!editorRef.current || !anchorNode || !editorRef.current.contains(anchorNode)) return;
+    setActiveFmt({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+    });
+  };
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", updateActiveFmt);
+    return () => document.removeEventListener("selectionchange", updateActiveFmt);
+  }, []);
 
   const onInput = () => {
     setIsEmpty(!editorRef.current?.textContent?.trim());
+    updateActiveFmt();
   };
 
   const save = useMutation({
@@ -178,14 +198,15 @@ function Editor() {
                 <Button
                   type="button"
                   size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
+                  variant={activeFmt.bold ? "secondary" : "ghost"}
+                  className={activeFmt.bold ? "h-8 w-8 bg-primary/15 text-primary" : "h-8 w-8"}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     exec("bold");
                   }}
                   disabled={locked}
                   aria-label="Negrito"
+                  aria-pressed={activeFmt.bold}
                   title="Negrito (Ctrl+B)"
                 >
                   <Bold className="h-4 w-4" />
@@ -193,14 +214,15 @@ function Editor() {
                 <Button
                   type="button"
                   size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
+                  variant={activeFmt.italic ? "secondary" : "ghost"}
+                  className={activeFmt.italic ? "h-8 w-8 bg-primary/15 text-primary" : "h-8 w-8"}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     exec("italic");
                   }}
                   disabled={locked}
                   aria-label="Itálico"
+                  aria-pressed={activeFmt.italic}
                   title="Itálico (Ctrl+I)"
                 >
                   <Italic className="h-4 w-4" />
@@ -208,14 +230,15 @@ function Editor() {
                 <Button
                   type="button"
                   size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
+                  variant={activeFmt.underline ? "secondary" : "ghost"}
+                  className={activeFmt.underline ? "h-8 w-8 bg-primary/15 text-primary" : "h-8 w-8"}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     exec("underline");
                   }}
                   disabled={locked}
                   aria-label="Sublinhado"
+                  aria-pressed={activeFmt.underline}
                   title="Sublinhado (Ctrl+U)"
                 >
                   <UnderlineIcon className="h-4 w-4" />
