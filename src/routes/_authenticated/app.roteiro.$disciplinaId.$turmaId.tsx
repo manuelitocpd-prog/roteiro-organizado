@@ -1,166 +1,29 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { ArrowLeft, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Bold, Italic, Underline as UnderlineIcon } from "lucide-react";
 import { toast } from "sonner";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { configQuery } from "@/lib/queries";
 import type { ItemRoteiro } from "@/lib/types";
+import { itensToHtml, htmlToItens, isHtmlPayload } from "@/lib/roteiro-html";
 
 export const Route = createFileRoute("/_authenticated/app/roteiro/$disciplinaId/$turmaId")({
   head: () => ({ meta: [{ title: "Editar roteiro" }] }),
   component: Editor,
 });
 
-function makeId() {
-  return Math.random().toString(36).slice(2);
-}
-
-interface Section {
-  _key: string;
-  titulo: string;
-  topicos: string; // multi-line textarea; each line starts with "- "
-}
-
-// Normalize topic lines: strip leading spaces, convert leading "*" to "-",
-// ensure each non-empty line starts with "- ".
-function normalizeTopicos(raw: string): string {
-  return raw
-    .split(/\r?\n/)
-    .map((line) => {
-      const trimmed = line.replace(/^\s+/, "");
-      if (!trimmed) return "";
-      const body = trimmed.replace(/^[-*•]+\s*/, "");
-      return body ? `- ${body}` : "";
-    })
-    .join("\n");
-}
-
-// Convert sections → persisted ItemRoteiro[]
-function sectionsToItens(sections: Section[]): ItemRoteiro[] {
-  const out: ItemRoteiro[] = [];
-  for (const s of sections) {
-    const titulo = s.titulo.trim();
-    if (titulo) out.push({ tipo: "subtitulo", texto: titulo });
-    for (const line of s.topicos.split(/\r?\n/)) {
-      const t = line.replace(/^\s+/, "").replace(/^[-*•]+\s*/, "").trim();
-      if (t) out.push({ tipo: "topico", texto: t });
-    }
-  }
-  return out;
-}
-
-// Convert persisted ItemRoteiro[] → sections
-function itensToSections(itens: ItemRoteiro[]): Section[] {
-  const out: Section[] = [];
-  let cur: Section | null = null;
-  for (const it of itens) {
-    if (it.tipo === "subtitulo") {
-      cur = { _key: makeId(), titulo: it.texto, topicos: "" };
-      out.push(cur);
-    } else {
-      if (!cur) {
-        cur = { _key: makeId(), titulo: "", topicos: "" };
-        out.push(cur);
-      }
-      cur.topicos = cur.topicos ? `${cur.topicos}\n- ${it.texto}` : `- ${it.texto}`;
-    }
-  }
-  return out;
-}
-
-function SortableSection({
-  section,
-  onChange,
-  onRemove,
-  disabled,
-}: {
-  section: Section;
-  onChange: (patch: Partial<Section>) => void;
-  onRemove: () => void;
-  disabled: boolean;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: section._key,
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 }}
-      className="rounded border bg-card p-3"
-    >
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          className="mt-2 cursor-grab text-muted-foreground"
-          {...attributes}
-          {...listeners}
-          aria-label="Reordenar subtítulo"
-          disabled={disabled}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <div className="flex-1 space-y-2">
-          <Input
-            value={section.titulo}
-            onChange={(e) => onChange({ titulo: e.target.value })}
-            placeholder="Subtítulo (ex: Livro 02 — Unidade 2)"
-            disabled={disabled}
-            className="font-semibold"
-          />
-          <Textarea
-            value={section.topicos}
-            onChange={(e) => onChange({ topicos: e.target.value })}
-            onBlur={(e) => onChange({ topicos: normalizeTopicos(e.target.value) })}
-            placeholder={"- Autor: **Marcelo Bizerril**\n- Capítulo 3"}
-            disabled={disabled}
-            rows={4}
-            className="font-mono text-sm"
-          />
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={onRemove}
-          disabled={disabled}
-          aria-label="Remover subtítulo"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function Editor() {
   const { disciplinaId, turmaId } = Route.useParams();
   const { professorId, isAdmin } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const { data: cfg } = useQuery(configQuery);
   const { data: meta } = useQuery({
@@ -178,7 +41,7 @@ function Editor() {
     queryKey: ["roteiro", disciplinaId, turmaId, cfg?.etapa_atual, cfg?.tipo_avaliacao, professorId],
     enabled: !!cfg && (!!professorId || isAdmin),
     queryFn: async () => {
-      const q = supabase
+      const { data, error } = await supabase
         .from("roteiros")
         .select("*")
         .eq("disciplina_id", disciplinaId)
@@ -186,15 +49,15 @@ function Editor() {
         .eq("etapa", cfg!.etapa_atual)
         .eq("tipo_avaliacao", cfg!.tipo_avaliacao)
         .maybeSingle();
-      const { data, error } = await q;
       if (error) throw error;
       return data;
     },
   });
 
-  const [sections, setSections] = useState<Section[]>([]);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [obs, setObs] = useState("");
   const [status, setStatus] = useState<"rascunho" | "enviado">("rascunho");
+  const [isEmpty, setIsEmpty] = useState(true);
   const locked =
     !!existing &&
     !!cfg &&
@@ -202,20 +65,30 @@ function Editor() {
     !isAdmin;
 
   useEffect(() => {
-    if (!existing) {
-      setSections([]);
-      setObs("");
-      setStatus("rascunho");
-      return;
+    const itens = ((existing?.itens as unknown as ItemRoteiro[]) ?? []);
+    const html = isHtmlPayload(itens) ? itens[0].texto : itensToHtml(itens);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = html;
+      setIsEmpty(!editorRef.current.textContent?.trim());
     }
-    setSections(itensToSections((existing.itens as unknown as ItemRoteiro[]) ?? []));
-    setObs(existing.observacao ?? "");
-    setStatus(existing.status);
+    setObs(existing?.observacao ?? "");
+    setStatus(existing?.status ?? "rascunho");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing?.id]);
+
+  const exec = (cmd: "bold" | "italic" | "underline") => {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false);
+  };
+
+  const onInput = () => {
+    setIsEmpty(!editorRef.current?.textContent?.trim());
+  };
 
   const save = useMutation({
     mutationFn: async (novoStatus: "rascunho" | "enviado") => {
-      const itens = sectionsToItens(sections);
+      const html = editorRef.current?.innerHTML ?? "";
+      const itens = htmlToItens(html);
       const payload = {
         disciplina_id: disciplinaId,
         turma_id: turmaId,
@@ -242,14 +115,6 @@ function Editor() {
     },
     onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
   });
-
-  const onDragEnd = (ev: DragEndEvent) => {
-    const { active, over } = ev;
-    if (!over || active.id === over.id) return;
-    const oldIdx = sections.findIndex((i) => i._key === active.id);
-    const newIdx = sections.findIndex((i) => i._key === over.id);
-    setSections((prev) => arrayMove(prev, oldIdx, newIdx));
-  };
 
   const fmtDate = (d: string | null | undefined) => {
     if (!d) return "";
@@ -299,62 +164,77 @@ function Editor() {
 
           <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">Como preencher</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5">
-              <li>
-                Adicione um <strong>subtítulo</strong> para cada bloco (ex.: "Livro 02 — Unidade 2").
-              </li>
-              <li>
-                Escreva os tópicos no campo abaixo, <strong>um por linha</strong>, cada linha
-                iniciando com <code>-</code>.
-              </li>
-              <li>
-                Não use <code>*</code> ou outros símbolos no início — use apenas <code>-</code>.
-              </li>
-              <li>
-                Para <strong>negrito</strong> dentro de um tópico, envolva o texto com{" "}
-                <code>**dois asteriscos**</code>.
-              </li>
-            </ul>
+            <p className="mt-1">
+              Escreva o conteúdo da prova no campo abaixo. Use os botões da barra para aplicar{" "}
+              <strong>negrito</strong>, <em>itálico</em> ou{" "}
+              <span className="underline">sublinhado</span> ao texto selecionado.
+            </p>
           </div>
 
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <Label>Conteúdo do roteiro</Label>
-            </div>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              <SortableContext
-                items={sections.map((i) => i._key)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {sections.map((sec, idx) => (
-                    <SortableSection
-                      key={sec._key}
-                      section={sec}
-                      disabled={locked}
-                      onChange={(patch) =>
-                        setSections((prev) =>
-                          prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)),
-                        )
-                      }
-                      onRemove={() => setSections((prev) => prev.filter((_, i) => i !== idx))}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-            <div className="mt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={locked}
-                onClick={() =>
-                  setSections((p) => [...p, { _key: makeId(), titulo: "", topicos: "" }])
-                }
-              >
-                <Plus className="mr-1 h-4 w-4" /> Subtítulo
-              </Button>
+            <Label>Conteúdo do roteiro</Label>
+            <div className="mt-2 overflow-hidden rounded-md border">
+              <div className="flex items-center gap-1 border-b bg-muted/40 px-2 py-1">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    exec("bold");
+                  }}
+                  disabled={locked}
+                  aria-label="Negrito"
+                  title="Negrito (Ctrl+B)"
+                >
+                  <Bold className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    exec("italic");
+                  }}
+                  disabled={locked}
+                  aria-label="Itálico"
+                  title="Itálico (Ctrl+I)"
+                >
+                  <Italic className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    exec("underline");
+                  }}
+                  disabled={locked}
+                  aria-label="Sublinhado"
+                  title="Sublinhado (Ctrl+U)"
+                >
+                  <UnderlineIcon className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="relative">
+                {isEmpty && (
+                  <div className="pointer-events-none absolute left-3 top-3 text-sm text-muted-foreground">
+                    Digite o conteúdo do roteiro…
+                  </div>
+                )}
+                <div
+                  ref={editorRef}
+                  contentEditable={!locked}
+                  suppressContentEditableWarning
+                  onInput={onInput}
+                  className="min-h-[240px] w-full px-3 py-3 text-sm outline-none [&_p]:my-1 [&_u]:underline"
+                />
+              </div>
             </div>
           </div>
 
@@ -379,7 +259,7 @@ function Editor() {
               Salvar rascunho
             </Button>
             <Button
-              disabled={locked || save.isPending || sections.length === 0}
+              disabled={locked || save.isPending || isEmpty}
               onClick={() => save.mutate("enviado")}
             >
               Enviar roteiro

@@ -1,38 +1,42 @@
-## Mudanças
+## Mudança
 
-### 1. Período de realização vai para "Etapa atual" (global)
+Substituir o editor atual de subtítulos + tópicos por um **único campo de texto livre** (corpo principal) com uma **barra de formatação simples**: negrito, itálico e sublinhado. Atualizar as instruções acima do campo.
 
-- Adicionar duas colunas em `configuracao_etapa`: `data_inicio_realizacao` e `data_fim_realizacao` (date, nulláveis).
-- Em `/admin/etapa`: adicionar dois campos de data (início/fim) ao lado de etapa/tipo/ano, salvos junto com o resto.
-- No editor de roteiro (`app.roteiro.$disciplinaId.$turmaId.tsx`): remover os inputs de data. As datas passam a ser lidas do `configQuery` e exibidas apenas como leitura (badge/linha informativa), já que valem para toda a escola na etapa vigente.
-- No PDF (`src/lib/pdf.ts`): usar as datas de `configuracao_etapa` no cabeçalho (em vez das do roteiro). As colunas `data_inicio_realizacao`/`data_fim_realizacao` do `roteiros` deixam de ser preenchidas pela UI (mantidas no schema para não quebrar histórico).
+## Editor de roteiro
 
-### 2. Editor de roteiro: só subtítulos + tópicos como texto com "-"
+Em `src/routes/_authenticated/app.roteiro.$disciplinaId.$turmaId.tsx`:
 
-Reestrutura o editor para uma lista de subtítulos apenas. Cada subtítulo tem:
-- um input para o título (ex.: "Livro 02 — Unidade 2");
-- um textarea multilinha onde o professor escreve os tópicos, um por linha, cada linha começando com `-`.
+- Remover toda a UI de "seções" (subtítulos + textareas), incluindo `SortableSection`, DnD, botão "+ Subtítulo", helpers `sectionsToItens` / `itensToSections` / `normalizeTopicos`.
+- Colocar um único editor rich-text (contentEditable) ocupando o espaço principal, com toolbar acima contendo três botões:
+  - **N** (negrito)
+  - *I* (itálico)
+  - **U** (sublinhado)
+- Atalhos de teclado padrão do navegador (Ctrl/Cmd+B/I/U) continuam funcionando.
+- Sem listas, sem cores, sem títulos — só as três formatações pedidas.
 
-Regras:
-- Remover o `<Select>` de tipo (tópico/subtítulo) e o botão "+ Tópico". Sobra só "+ Subtítulo".
-- Instrução visível acima da lista: "Escreva cada tópico em uma linha, iniciando com `-`. Não use `*` ou outros símbolos. Use `**texto**` para negrito."
-- Validação leve ao digitar/salvar: linhas do textarea que não começarem com `-` (ignorando espaços) recebem `-` automaticamente ou são sinalizadas; qualquer `*` no início de linha é convertido para `-`.
+## Instruções (bloco azul acima do editor)
 
-Persistência (mantendo o tipo `ItemRoteiro` atual para não migrar dados):
-- Cada subtítulo salvo como `{ tipo: "subtitulo", texto: "<título>" }` seguido de vários `{ tipo: "topico", texto: "<linha sem o '-'>" }`.
-- Ao carregar um roteiro existente, agrupar tópicos sob o subtítulo anterior e reconstruir os textareas com linhas `- <texto>`.
-- Roteiros antigos continuam abrindo normalmente (mesma estrutura de itens).
+Substituir por:
 
-### 3. PDF
+> **Como preencher**
+> Escreva o conteúdo da prova no campo abaixo. Use os botões da barra para aplicar **negrito**, *itálico* ou sublinhado ao texto selecionado.
 
-- Renderiza subtítulos em negrito e cada tópico prefixado com `- ` (já era o comportamento, apenas garantir que `*` residual vire `-`).
-- Cabeçalho passa a mostrar o período global vindo de `configuracao_etapa`.
+## Persistência
 
-## Detalhes técnicos
+Manter o schema atual (`roteiros.itens jsonb`) sem migração:
 
-- Migração: `ALTER TABLE public.configuracao_etapa ADD COLUMN data_inicio_realizacao date, ADD COLUMN data_fim_realizacao date;` (grants/RLS já existentes cobrem).
-- `src/lib/queries.ts` (`configQuery`): passa a devolver também as duas datas.
-- `src/routes/_authenticated/admin.etapa.tsx`: dois `<Input type="date">` + mutation atualizada.
-- `src/routes/_authenticated/app.roteiro.$disciplinaId.$turmaId.tsx`: remover estado `dIni/dFim`, remover inputs, refatorar `itens` para uma UI baseada em "seções" (subtítulo + textarea), com serialização/deserialização para o formato `ItemRoteiro[]` atual.
-- `src/lib/pdf.ts`: ler datas do `cfg`, normalizar `*` → `-` no início de linhas de tópico.
-- Sem mudanças em Acompanhamento além de remover qualquer edição de período que exista lá.
+- Salvar o HTML do editor como um único item: `[{ tipo: "subtitulo", texto: "<html>" }]` — reaproveita a coluna existente sem alterar tipos. (Alternativa considerada: adicionar `{ tipo: "html", texto }` ao union `ItemRoteiro`; fica como opção se você preferir tipagem explícita — diga qual prefere.)
+- Ao carregar um roteiro existente:
+  - Se `itens` tiver um único item com HTML, carrega direto no editor.
+  - Se for o formato antigo (subtítulos + tópicos em texto puro), converter para HTML na abertura: cada subtítulo vira `<p><strong>…</strong></p>` e cada tópico vira `<p>- …</p>`, preservando `**negrito**` → `<strong>`. Assim roteiros antigos continuam abrindo sem perda.
+
+## PDF (`src/lib/pdf.ts`)
+
+- Passar a receber o HTML de cada disciplina e renderizar parágrafo a parágrafo, respeitando `<strong>`, `<em>` e `<u>` (jsPDF: alternar fonte bold/italic e desenhar linha sob o texto para sublinhado).
+- Layout de duas colunas, cabeçalho e ordem das disciplinas permanecem iguais.
+- Compatibilidade com roteiros antigos: se `itens` vier no formato legado, converter para HTML equivalente antes de renderizar (mesma função do editor).
+
+## Fora de escopo
+
+- Sem mudanças em Admin/Etapa, Acompanhamento, schema do banco, autenticação ou vínculos.
+- Sem imagens, links, listas ou tabelas no editor — só B/I/U.
