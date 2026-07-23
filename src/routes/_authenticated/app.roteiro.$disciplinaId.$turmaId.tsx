@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { configQuery } from "@/lib/queries";
@@ -37,18 +44,54 @@ function Editor() {
     },
   });
 
-  const { data: existing } = useQuery({
-    queryKey: ["roteiro", disciplinaId, turmaId, cfg?.etapa_atual, cfg?.tipo_avaliacao, professorId],
-    enabled: !!cfg && (!!professorId || isAdmin),
+  const { data: profsVinculados } = useQuery({
+    queryKey: ["pdt-professores", disciplinaId, turmaId],
+    enabled: isAdmin,
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("professor_disciplina_turma")
+        .select("professor_id, professores(id, nome)")
+        .eq("disciplina_id", disciplinaId)
+        .eq("turma_id", turmaId);
+      if (error) throw error;
+      return (data ?? [])
+        .map((r) => r.professores as { id: string; nome: string } | null)
+        .filter((p): p is { id: string; nome: string } => !!p);
+    },
+  });
+
+  const [selectedProfessorId, setSelectedProfessorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAdmin && !selectedProfessorId && profsVinculados && profsVinculados.length === 1) {
+      setSelectedProfessorId(profsVinculados[0].id);
+    }
+  }, [isAdmin, profsVinculados, selectedProfessorId]);
+
+  const effectiveProfessorId = isAdmin ? selectedProfessorId : professorId;
+
+  const { data: existing } = useQuery({
+    queryKey: [
+      "roteiro",
+      disciplinaId,
+      turmaId,
+      cfg?.etapa_atual,
+      cfg?.tipo_avaliacao,
+      isAdmin ? selectedProfessorId : professorId,
+    ],
+    enabled: !!cfg && (isAdmin ? !!selectedProfessorId : !!professorId),
+    queryFn: async () => {
+      let q = supabase
         .from("roteiros")
         .select("*")
         .eq("disciplina_id", disciplinaId)
         .eq("turma_id", turmaId)
         .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao)
-        .maybeSingle();
+        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+      if (isAdmin && selectedProfessorId) {
+        q = q.eq("professor_id", selectedProfessorId);
+      }
+      const { data, error } = await q.maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -107,12 +150,19 @@ function Editor() {
 
   const save = useMutation({
     mutationFn: async (novoStatus: "rascunho" | "enviado") => {
+      if (!effectiveProfessorId) {
+        throw new Error(
+          isAdmin
+            ? "Selecione o professor em cujo nome o roteiro será enviado."
+            : "Professor não identificado.",
+        );
+      }
       const html = editorRef.current?.innerHTML ?? "";
       const itens = htmlToItens(html);
       const payload = {
         disciplina_id: disciplinaId,
         turma_id: turmaId,
-        professor_id: professorId!,
+        professor_id: effectiveProfessorId,
         etapa: cfg!.etapa_atual,
         tipo_avaliacao: cfg!.tipo_avaliacao,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,6 +231,35 @@ function Editor() {
               Este roteiro é de uma etapa/tipo passado e está travado (só leitura).
             </div>
           )}
+
+          {isAdmin && (
+            <div className="rounded border bg-muted/30 p-3">
+              <Label>Enviando em nome de</Label>
+              {profsVinculados && profsVinculados.length === 0 ? (
+                <p className="mt-2 text-sm text-amber-800">
+                  Nenhum professor vinculado a esta disciplina/turma. Vincule em Currículo antes de enviar.
+                </p>
+              ) : (
+                <Select
+                  value={selectedProfessorId ?? ""}
+                  onValueChange={(v) => setSelectedProfessorId(v)}
+                  disabled={locked}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Selecione o professor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(profsVinculados ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
 
           <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">Como preencher</p>
@@ -276,13 +355,13 @@ function Editor() {
           <div className="flex flex-wrap justify-end gap-2 pt-2">
             <Button
               variant="outline"
-              disabled={locked || save.isPending}
+              disabled={locked || save.isPending || (isAdmin && !selectedProfessorId)}
               onClick={() => save.mutate("rascunho")}
             >
               Salvar rascunho
             </Button>
             <Button
-              disabled={locked || save.isPending || isEmpty}
+              disabled={locked || save.isPending || isEmpty || (isAdmin && !selectedProfessorId)}
               onClick={() => save.mutate("enviado")}
             >
               Enviar roteiro
