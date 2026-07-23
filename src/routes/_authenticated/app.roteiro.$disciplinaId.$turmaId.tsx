@@ -355,13 +355,13 @@ function Editor() {
           <div className="flex flex-wrap justify-end gap-2 pt-2">
             <Button
               variant="outline"
-              disabled={locked || save.isPending}
+              disabled={locked || save.isPending || (isAdmin && !selectedProfessorId)}
               onClick={() => save.mutate("rascunho")}
             >
               Salvar rascunho
             </Button>
             <Button
-              disabled={locked || save.isPending || isEmpty}
+              disabled={locked || save.isPending || isEmpty || (isAdmin && !selectedProfessorId)}
               onClick={() => save.mutate("enviado")}
             >
               Enviar roteiro
