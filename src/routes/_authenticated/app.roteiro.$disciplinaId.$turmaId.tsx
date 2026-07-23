@@ -150,12 +150,19 @@ function Editor() {
 
   const save = useMutation({
     mutationFn: async (novoStatus: "rascunho" | "enviado") => {
+      if (!effectiveProfessorId) {
+        throw new Error(
+          isAdmin
+            ? "Selecione o professor em cujo nome o roteiro será enviado."
+            : "Professor não identificado.",
+        );
+      }
       const html = editorRef.current?.innerHTML ?? "";
       const itens = htmlToItens(html);
       const payload = {
         disciplina_id: disciplinaId,
         turma_id: turmaId,
-        professor_id: professorId!,
+        professor_id: effectiveProfessorId,
         etapa: cfg!.etapa_atual,
         tipo_avaliacao: cfg!.tipo_avaliacao,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
