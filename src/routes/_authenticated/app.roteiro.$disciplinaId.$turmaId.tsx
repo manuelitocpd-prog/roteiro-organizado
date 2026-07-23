@@ -44,29 +44,58 @@ function Editor() {
     },
   });
 
-  const { data: existing } = useQuery({
-    queryKey: ["roteiro", disciplinaId, turmaId, cfg?.etapa_atual, cfg?.tipo_avaliacao, professorId],
-    enabled: !!cfg && (!!professorId || isAdmin),
+  const { data: profsVinculados } = useQuery({
+    queryKey: ["pdt-professores", disciplinaId, turmaId],
+    enabled: isAdmin,
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("professor_disciplina_turma")
+        .select("professor_id, professores(id, nome)")
+        .eq("disciplina_id", disciplinaId)
+        .eq("turma_id", turmaId);
+      if (error) throw error;
+      return (data ?? [])
+        .map((r) => r.professores as { id: string; nome: string } | null)
+        .filter((p): p is { id: string; nome: string } => !!p);
+    },
+  });
+
+  const [selectedProfessorId, setSelectedProfessorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAdmin && !selectedProfessorId && profsVinculados && profsVinculados.length === 1) {
+      setSelectedProfessorId(profsVinculados[0].id);
+    }
+  }, [isAdmin, profsVinculados, selectedProfessorId]);
+
+  const effectiveProfessorId = isAdmin ? selectedProfessorId : professorId;
+
+  const { data: existing } = useQuery({
+    queryKey: [
+      "roteiro",
+      disciplinaId,
+      turmaId,
+      cfg?.etapa_atual,
+      cfg?.tipo_avaliacao,
+      isAdmin ? selectedProfessorId : professorId,
+    ],
+    enabled: !!cfg && (isAdmin ? !!selectedProfessorId : !!professorId),
+    queryFn: async () => {
+      let q = supabase
         .from("roteiros")
         .select("*")
         .eq("disciplina_id", disciplinaId)
         .eq("turma_id", turmaId)
         .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao)
-        .maybeSingle();
+        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+      if (isAdmin && selectedProfessorId) {
+        q = q.eq("professor_id", selectedProfessorId);
+      }
+      const { data, error } = await q.maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [obs, setObs] = useState("");
-  const [status, setStatus] = useState<"rascunho" | "enviado">("rascunho");
-  const [isEmpty, setIsEmpty] = useState(true);
-  const [activeFmt, setActiveFmt] = useState({ bold: false, italic: false, underline: false });
-  const locked =
     !!existing &&
     !!cfg &&
     (existing.etapa !== cfg.etapa_atual || existing.tipo_avaliacao !== cfg.tipo_avaliacao) &&
