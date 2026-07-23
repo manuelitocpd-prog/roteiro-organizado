@@ -1,19 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,6 +17,8 @@ export const Route = createFileRoute("/_authenticated/admin/vinculos")({
   component: Page,
 });
 
+type Turma = { id: string; nome: string; segmento: string };
+
 function Page() {
   const { data: profs } = useQuery(professoresQuery);
   const { data: turmas } = useQuery(turmasQuery);
@@ -32,81 +26,79 @@ function Page() {
   const { data: pdt } = useQuery(pdtQuery);
   const qc = useQueryClient();
 
-  const [open, setOpen] = useState(false);
   const [profId, setProfId] = useState("");
-  const [turmaId, setTurmaId] = useState("");
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set()); // ids de turma_disciplina
+  // chave "turmaId:disciplinaId" para cada disciplina marcada
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
 
-  // Disciplinas do currículo da turma escolhida
-  const disciplinasDaTurma = useMemo(() => {
-    return (td ?? [])
-      .filter((r) => r.turma_id === turmaId)
-      .map((r) => {
-        const d = r.disciplinas as unknown as { nome: string } | null;
-        return {
-          id: r.id, // id da linha em turma_disciplina
-          disciplina_id: r.disciplina_id,
-          nome: d?.nome ?? "",
-        };
-      })
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [td, turmaId]);
+  // Agrupa disciplinas por turma a partir do currículo
+  const disciplinasPorTurma = useMemo(() => {
+    const map = new Map<string, { disciplina_id: string; nome: string }[]>();
+    (td ?? []).forEach((r) => {
+      const d = r.disciplinas as unknown as { nome: string } | null;
+      const arr = map.get(r.turma_id) ?? [];
+      arr.push({ disciplina_id: r.disciplina_id, nome: d?.nome ?? "" });
+      map.set(r.turma_id, arr);
+    });
+    for (const arr of map.values()) arr.sort((a, b) => a.nome.localeCompare(b.nome));
+    return map;
+  }, [td]);
 
-  // Vínculos já existentes desse professor nessa turma (para pré-marcar os checkboxes)
+  // Vínculos atuais do professor selecionado (Set de "turmaId:disciplinaId")
   const vinculosAtuais = useMemo(() => {
-    if (!profId || !turmaId) return new Set<string>();
-    const jaVinculadas = new Set(
-      (pdt ?? [])
-        .filter((v) => v.professor_id === profId && v.turma_id === turmaId)
-        .map((v) => v.disciplina_id),
-    );
-    // Precisamos do id de turma_disciplina correspondente, não do disciplina_id
-    const ids = disciplinasDaTurma.filter((d) => jaVinculadas.has(d.disciplina_id)).map((d) => d.id);
-    return new Set(ids);
-  }, [pdt, profId, turmaId, disciplinasDaTurma]);
+    const s = new Set<string>();
+    if (!profId) return s;
+    (pdt ?? [])
+      .filter((v) => v.professor_id === profId)
+      .forEach((v) => s.add(`${v.turma_id}:${v.disciplina_id}`));
+    return s;
+  }, [pdt, profId]);
 
-  // Sempre que trocar professor/turma, reinicia a seleção com o que já está vinculado
+  // Sempre que trocar professor, reinicia a seleção com o que já está vinculado
   useEffect(() => {
     setSelecionadas(new Set(vinculosAtuais));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profId, turmaId]);
+  }, [profId]);
 
-  const resetForm = () => {
-    setProfId("");
-    setTurmaId("");
-    setSelecionadas(new Set());
-  };
-
-  const toggleDisciplina = (id: string) => {
+  const toggleDisciplina = (turmaId: string, disciplinaId: string) => {
+    const key = `${turmaId}:${disciplinaId}`;
     setSelecionadas((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  const marcarTodas = () => setSelecionadas(new Set(disciplinasDaTurma.map((d) => d.id)));
-  const desmarcarTodas = () => setSelecionadas(new Set());
+  const toggleTurmaToda = (turmaId: string, marcar: boolean) => {
+    const ds = disciplinasPorTurma.get(turmaId) ?? [];
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      ds.forEach((d) => {
+        const key = `${turmaId}:${d.disciplina_id}`;
+        if (marcar) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  };
 
   const salvar = useMutation({
     mutationFn: async () => {
-      // Diferença entre o que já existia e o que ficou marcado agora:
-      // cria os novos vínculos marcados e remove os que foram desmarcados.
-      const paraCriar = disciplinasDaTurma.filter(
-        (d) => selecionadas.has(d.id) && !vinculosAtuais.has(d.id),
-      );
-      const paraRemover = disciplinasDaTurma.filter(
-        (d) => !selecionadas.has(d.id) && vinculosAtuais.has(d.id),
-      );
+      const paraCriar: { turma_id: string; disciplina_id: string }[] = [];
+      const paraRemover: { turma_id: string; disciplina_id: string }[] = [];
+
+      const todas = new Set<string>([...selecionadas, ...vinculosAtuais]);
+      todas.forEach((key) => {
+        const [turma_id, disciplina_id] = key.split(":");
+        const marcada = selecionadas.has(key);
+        const jaVinculada = vinculosAtuais.has(key);
+        if (marcada && !jaVinculada) paraCriar.push({ turma_id, disciplina_id });
+        else if (!marcada && jaVinculada) paraRemover.push({ turma_id, disciplina_id });
+      });
 
       if (paraCriar.length > 0) {
         const { error } = await supabase.from("professor_disciplina_turma").insert(
-          paraCriar.map((d) => ({
-            professor_id: profId,
-            turma_id: turmaId,
-            disciplina_id: d.disciplina_id,
-          })),
+          paraCriar.map((r) => ({ ...r, professor_id: profId })),
         );
         if (error) throw error;
       }
@@ -116,23 +108,24 @@ function Page() {
           .filter(
             (v) =>
               v.professor_id === profId &&
-              v.turma_id === turmaId &&
-              paraRemover.some((d) => d.disciplina_id === v.disciplina_id),
+              paraRemover.some(
+                (r) => r.turma_id === v.turma_id && r.disciplina_id === v.disciplina_id,
+              ),
           )
           .map((v) => v.id);
-        const { error } = await supabase
-          .from("professor_disciplina_turma")
-          .delete()
-          .in("id", idsExistentes);
-        if (error) throw error;
+        if (idsExistentes.length > 0) {
+          const { error } = await supabase
+            .from("professor_disciplina_turma")
+            .delete()
+            .in("id", idsExistentes);
+          if (error) throw error;
+        }
       }
 
       return paraCriar.length + paraRemover.length;
     },
     onSuccess: (qtd) => {
       qc.invalidateQueries();
-      setOpen(false);
-      resetForm();
       toast.success(qtd > 0 ? "Vínculos atualizados" : "Nenhuma alteração");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -147,148 +140,169 @@ function Page() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Agrupa turmas por segmento para exibição
+  const turmasPorSegmento = useMemo(() => {
+    const map = new Map<string, Turma[]>();
+    (turmas ?? []).forEach((t) => {
+      const arr = map.get(t.segmento) ?? [];
+      arr.push(t as Turma);
+      map.set(t.segmento, arr);
+    });
+    return Array.from(map.entries());
+  }, [turmas]);
+
+  const houveMudanca = useMemo(() => {
+    if (selecionadas.size !== vinculosAtuais.size) return true;
+    for (const k of selecionadas) if (!vinculosAtuais.has(k)) return true;
+    return false;
+  }, [selecionadas, vinculosAtuais]);
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Professores × Turmas × Disciplinas</CardTitle>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) resetForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-1 h-4 w-4" /> Novo vínculo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Vincular disciplinas a um professor</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label>Professor</Label>
-                <Select value={profId} onValueChange={setProfId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {profs?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Vincular disciplinas a um professor</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-w-md">
+            <Label>Professor</Label>
+            <Select value={profId} onValueChange={setProfId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Escolha um professor" />
+              </SelectTrigger>
+              <SelectContent>
+                {profs?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-              <div>
-                <Label>Turma</Label>
-                <Select value={turmaId} onValueChange={setTurmaId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha a turma" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {turmas?.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome} ({t.segmento})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {turmaId && (
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Disciplinas dessa turma</Label>
-                    {disciplinasDaTurma.length > 0 && (
-                      <div className="flex gap-2 text-xs">
-                        <button
-                          type="button"
-                          className="text-primary underline"
-                          onClick={marcarTodas}
-                        >
-                          Marcar todas
-                        </button>
-                        <button
-                          type="button"
-                          className="text-muted-foreground underline"
-                          onClick={desmarcarTodas}
-                        >
-                          Limpar
-                        </button>
-                      </div>
-                    )}
+          {profId && (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                {turmasPorSegmento.map(([segmento, ts]) => (
+                  <div key={segmento} className="space-y-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      {segmento}
+                    </h3>
+                    {ts.map((t) => {
+                      const ds = disciplinasPorTurma.get(t.id) ?? [];
+                      const totalMarcadas = ds.filter((d) =>
+                        selecionadas.has(`${t.id}:${d.disciplina_id}`),
+                      ).length;
+                      const todasMarcadas = ds.length > 0 && totalMarcadas === ds.length;
+                      return (
+                        <div key={t.id} className="rounded-md border">
+                          <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-2">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                              <Checkbox
+                                checked={
+                                  todasMarcadas
+                                    ? true
+                                    : totalMarcadas > 0
+                                      ? "indeterminate"
+                                      : false
+                                }
+                                onCheckedChange={(v) => toggleTurmaToda(t.id, v === true)}
+                                disabled={ds.length === 0}
+                              />
+                              {t.nome}
+                            </label>
+                            <span className="text-xs text-muted-foreground">
+                              {totalMarcadas}/{ds.length}
+                            </span>
+                          </div>
+                          {ds.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                              Sem disciplinas no currículo.
+                            </p>
+                          ) : (
+                            <div className="space-y-1 p-2">
+                              {ds.map((d) => {
+                                const key = `${t.id}:${d.disciplina_id}`;
+                                return (
+                                  <label
+                                    key={key}
+                                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/60"
+                                  >
+                                    <Checkbox
+                                      checked={selecionadas.has(key)}
+                                      onCheckedChange={() =>
+                                        toggleDisciplina(t.id, d.disciplina_id)
+                                      }
+                                    />
+                                    {d.nome}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                ))}
+              </div>
 
-                  {disciplinasDaTurma.length === 0 ? (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Essa turma ainda não tem disciplinas cadastradas no currículo.
-                    </p>
-                  ) : (
-                    <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-md border p-2">
-                      {disciplinasDaTurma.map((d) => (
-                        <label
-                          key={d.id}
-                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/60"
-                        >
-                          <Checkbox
-                            checked={selecionadas.has(d.id)}
-                            onCheckedChange={() => toggleDisciplina(d.id)}
-                          />
-                          {d.nome}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => salvar.mutate()}
-                disabled={!profId || !turmaId || salvar.isPending}
-              >
-                Salvar vínculos
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Professor</TableHead>
-              <TableHead>Turma</TableHead>
-              <TableHead>Disciplina</TableHead>
-              <TableHead className="w-16"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pdt?.map((v) => {
-              const p = v.professores as unknown as { nome: string } | null;
-              const t = v.turmas as unknown as { nome: string } | null;
-              const d = v.disciplinas as unknown as { nome: string } | null;
-              return (
-                <TableRow key={v.id}>
-                  <TableCell>{p?.nome}</TableCell>
-                  <TableCell>{t?.nome}</TableCell>
-                  <TableCell>{d?.nome}</TableCell>
-                  <TableCell>
-                    <Button size="icon" variant="ghost" onClick={() => remove.mutate(v.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+              <div className="flex items-center justify-end gap-2 border-t pt-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelecionadas(new Set(vinculosAtuais))}
+                  disabled={!houveMudanca || salvar.isPending}
+                >
+                  Descartar alterações
+                </Button>
+                <Button
+                  onClick={() => salvar.mutate()}
+                  disabled={!houveMudanca || salvar.isPending}
+                >
+                  Salvar vínculos
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Todos os vínculos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Professor</TableHead>
+                <TableHead>Turma</TableHead>
+                <TableHead>Disciplina</TableHead>
+                <TableHead className="w-16"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pdt?.map((v) => {
+                const p = v.professores as unknown as { nome: string } | null;
+                const t = v.turmas as unknown as { nome: string } | null;
+                const d = v.disciplinas as unknown as { nome: string } | null;
+                return (
+                  <TableRow key={v.id}>
+                    <TableCell>{p?.nome}</TableCell>
+                    <TableCell>{t?.nome}</TableCell>
+                    <TableCell>{d?.nome}</TableCell>
+                    <TableCell>
+                      <Button size="icon" variant="ghost" onClick={() => remove.mutate(v.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
