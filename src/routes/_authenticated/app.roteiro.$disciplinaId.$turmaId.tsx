@@ -232,6 +232,35 @@ function Editor() {
             </div>
           )}
 
+          {isAdmin && (
+            <div className="rounded border bg-muted/30 p-3">
+              <Label>Enviando em nome de</Label>
+              {profsVinculados && profsVinculados.length === 0 ? (
+                <p className="mt-2 text-sm text-amber-800">
+                  Nenhum professor vinculado a esta disciplina/turma. Vincule em Currículo antes de enviar.
+                </p>
+              ) : (
+                <Select
+                  value={selectedProfessorId ?? ""}
+                  onValueChange={(v) => setSelectedProfessorId(v)}
+                  disabled={locked}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Selecione o professor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(profsVinculados ?? []).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+
           <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">Como preencher</p>
             <p className="mt-1">
