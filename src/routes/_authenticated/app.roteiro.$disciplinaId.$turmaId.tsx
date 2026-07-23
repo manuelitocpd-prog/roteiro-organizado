@@ -96,6 +96,13 @@ function Editor() {
       return data;
     },
   });
+
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [obs, setObs] = useState("");
+  const [status, setStatus] = useState<"rascunho" | "enviado">("rascunho");
+  const [isEmpty, setIsEmpty] = useState(true);
+  const [activeFmt, setActiveFmt] = useState({ bold: false, italic: false, underline: false });
+  const locked =
     !!existing &&
     !!cfg &&
     (existing.etapa !== cfg.etapa_atual || existing.tipo_avaliacao !== cfg.tipo_avaliacao) &&
