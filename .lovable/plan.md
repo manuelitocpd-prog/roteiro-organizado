@@ -1,42 +1,43 @@
-## Mudança
+## Objetivo
 
-Substituir o editor atual de subtítulos + tópicos por um **único campo de texto livre** (corpo principal) com uma **barra de formatação simples**: negrito, itálico e sublinhado. Atualizar as instruções acima do campo.
+Permitir que o admin salve/envie roteiros **em nome de um professor**, escolhendo qual professor entre os vinculados àquela disciplina+turma.
 
-## Editor de roteiro
+## Mudanças
 
-Em `src/routes/_authenticated/app.roteiro.$disciplinaId.$turmaId.tsx`:
+### 1. `src/routes/_authenticated/app.roteiro.$disciplinaId.$turmaId.tsx`
 
-- Remover toda a UI de "seções" (subtítulos + textareas), incluindo `SortableSection`, DnD, botão "+ Subtítulo", helpers `sectionsToItens` / `itensToSections` / `normalizeTopicos`.
-- Colocar um único editor rich-text (contentEditable) ocupando o espaço principal, com toolbar acima contendo três botões:
-  - **N** (negrito)
-  - *I* (itálico)
-  - **U** (sublinhado)
-- Atalhos de teclado padrão do navegador (Ctrl/Cmd+B/I/U) continuam funcionando.
-- Sem listas, sem cores, sem títulos — só as três formatações pedidas.
+- Adicionar query nova (só quando `isAdmin`) que busca em `professor_disciplina_turma` os professores vinculados àquela `disciplina_id` + `turma_id`, com join em `professores(id, nome)`.
+- Novo estado local `selectedProfessorId`.
+- Renderizar, **apenas para admin**, um `Select` (shadcn) no topo do card com o label "Enviando em nome de" e as opções vindas da query. Se houver só um professor vinculado, pré-seleciona; se não houver nenhum, mostra aviso "Nenhum professor vinculado a esta disciplina/turma" e desabilita salvar.
+- Quando `existing` (roteiro já salvo) carrega, se admin, inicializar `selectedProfessorId` com `existing.professor_id`.
+- No `save.mutationFn`:
+  - `const effectiveProfessorId = isAdmin ? selectedProfessorId : professorId;`
+  - Se `!effectiveProfessorId`, `throw new Error("Selecione o professor.")`.
+  - Usar `effectiveProfessorId` no `professor_id` do payload (tanto insert quanto update).
+- Desabilitar os botões "Salvar rascunho" / "Enviar roteiro" quando admin sem professor selecionado.
 
-## Instruções (bloco azul acima do editor)
+### 2. Query para carregar `existing` (admin)
 
-Substituir por:
+Hoje o `queryFn` de `existing` filtra por disciplina+turma+etapa+tipo e usa `maybeSingle()`. Para professor comum isso está correto (RLS restringe aos próprios). Para admin, o admin vê todos — se dois professores enviaram roteiro para a mesma disciplina/turma/etapa, `maybeSingle` quebra. Ajuste:
+- Quando `isAdmin`, filtrar também por `professor_id = selectedProfessorId` (recarregando a query ao trocar de professor via inclusão do id na `queryKey`).
+- Enquanto o admin não escolhe professor, não carrega roteiro existente (fica como "novo").
 
-> **Como preencher**
-> Escreva o conteúdo da prova no campo abaixo. Use os botões da barra para aplicar **negrito**, *itálico* ou sublinhado ao texto selecionado.
+### 3. RLS de `roteiros`
 
-## Persistência
+Verificar que as policies de INSERT/UPDATE permitem admin gravar com `professor_id` diferente do seu próprio `auth.uid()`. Se as policies atuais usam `professor_id = current_professor_id()` sem cláusula OR para `has_role(auth.uid(),'admin')`, adicionar essa cláusula via migração. (Vou confirmar lendo as policies antes de escrever a migração — se já existir cláusula admin, pulo esta etapa.)
 
-Manter o schema atual (`roteiros.itens jsonb`) sem migração:
+### 4. Trigger `roteiros_before_update`
 
-- Salvar o HTML do editor como um único item: `[{ tipo: "subtitulo", texto: "<html>" }]` — reaproveita a coluna existente sem alterar tipos. (Alternativa considerada: adicionar `{ tipo: "html", texto }` ao union `ItemRoteiro`; fica como opção se você preferir tipagem explícita — diga qual prefere.)
-- Ao carregar um roteiro existente:
-  - Se `itens` tiver um único item com HTML, carrega direto no editor.
-  - Se for o formato antigo (subtítulos + tópicos em texto puro), converter para HTML na abertura: cada subtítulo vira `<p><strong>…</strong></p>` e cada tópico vira `<p>- …</p>`, preservando `**negrito**` → `<strong>`. Assim roteiros antigos continuam abrindo sem perda.
-
-## PDF (`src/lib/pdf.ts`)
-
-- Passar a receber o HTML de cada disciplina e renderizar parágrafo a parágrafo, respeitando `<strong>`, `<em>` e `<u>` (jsPDF: alternar fonte bold/italic e desenhar linha sob o texto para sublinhado).
-- Layout de duas colunas, cabeçalho e ordem das disciplinas permanecem iguais.
-- Compatibilidade com roteiros antigos: se `itens` vier no formato legado, converter para HTML equivalente antes de renderizar (mesma função do editor).
+Já existe cláusula `IF NOT public.has_role(auth.uid(),'admin')`, então admin pode atualizar mesmo se a etapa mudou. OK, sem mudança.
 
 ## Fora de escopo
 
-- Sem mudanças em Admin/Etapa, Acompanhamento, schema do banco, autenticação ou vínculos.
-- Sem imagens, links, listas ou tabelas no editor — só B/I/U.
+- Não muda schema de `roteiros` (professor_id continua NOT NULL, correto).
+- Não muda editor para professor comum (mesmo comportamento).
+- Não muda PDF nem acompanhamento.
+
+## Detalhes técnicos
+
+- Novo `queryKey` do seletor: `["pdt-professores", disciplinaId, turmaId]`.
+- Novo `queryKey` do existing quando admin: inclui `selectedProfessorId`.
+- UI usa `Select` do shadcn já disponível no projeto.
