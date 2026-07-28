@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/app/")({
 
 function Home() {
   const { professorId, isAdmin, loading } = useAuth();
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
   const { data: pdt } = useQuery({
     queryKey: ["pdt-me", professorId],
     enabled: !!professorId,
@@ -28,15 +28,13 @@ function Home() {
     },
   });
   const { data: roteiros } = useQuery({
-    queryKey: ["roteiros-me", professorId, cfg?.etapa_atual, cfg?.tipo_avaliacao],
-    enabled: !!professorId && !!cfg,
+    queryKey: ["roteiros-me", professorId],
+    enabled: !!professorId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("roteiros")
-        .select("id, disciplina_id, turma_id, status")
-        .eq("professor_id", professorId!)
-        .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+        .select("id, disciplina_id, turma_id, status, etapa, tipo_avaliacao")
+        .eq("professor_id", professorId!);
       if (error) throw error;
       return data;
     },
