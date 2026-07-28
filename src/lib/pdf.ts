@@ -205,7 +205,8 @@ function buildBlocksForDisciplina(doc: jsPDF, r: RoteiroPdfInput): Block[] {
   }
 
   // spacer between disciplinas
-  blocks.push({ height: 3, draw: () => {} });
+  blocks.push({ height: 7, draw: () => {} });
+
   return blocks;
 }
 
