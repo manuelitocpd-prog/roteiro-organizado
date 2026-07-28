@@ -25,18 +25,13 @@ export const Route = createFileRoute("/_authenticated/admin/acompanhamento")({
 });
 
 function Page() {
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
   const { data: turmas } = useQuery(turmasQuery);
   const { data: td } = useQuery(turmaDisciplinaQuery);
   const { data: roteiros } = useQuery({
-    queryKey: ["roteiros-admin", cfg?.etapa_atual, cfg?.tipo_avaliacao],
-    enabled: !!cfg,
+    queryKey: ["roteiros-admin"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("roteiros")
-        .select("*")
-        .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+      const { data, error } = await supabase.from("roteiros").select("*");
       if (error) throw error;
       return data;
     },
