@@ -278,7 +278,7 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
       doc.setFontSize(segPt);
       if (doc.getTextWidth(seg) <= availW) {
         doc.text(seg, textX, headerY + 9.4);
-        doc.text(String(args.anoLetivo), headerY ? textX : textX, headerY + 13.4);
+        doc.text(String(args.anoLetivo), textX, headerY + 13.4);
       } else {
         let segLines = doc.splitTextToSize(seg, availW) as string[];
         if (segLines.length > 2) {
