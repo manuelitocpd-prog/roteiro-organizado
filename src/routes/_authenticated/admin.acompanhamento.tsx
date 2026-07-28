@@ -138,11 +138,18 @@ function Page() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card p-3 text-sm">
-        Etapa atual:{" "}
-        <strong>
-          {cfg?.etapa_atual}ª — {cfg?.tipo_avaliacao === "global" ? "Global" : "Parcial"}
-        </strong>
+      <div className="grid gap-2 rounded-lg border bg-card p-3 text-sm sm:grid-cols-3">
+        {SEGMENTOS.map((s) => {
+          const c = configPorSegmento(cfgs, s.valor);
+          return (
+            <div key={s.valor}>
+              <span className="text-muted-foreground">{s.label}: </span>
+              <strong>
+                {c ? `${c.etapa_atual}ª — ${c.tipo_avaliacao === "global" ? "Global" : "Parcial"}` : "—"}
+              </strong>
+            </div>
+          );
+        })}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {porTurma.map(({ turma, disciplinas }) => {
