@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { generateRoteirosPdf, pdfFilename } from "@/lib/pdf";
-import { configQuery, turmasQuery, turmaDisciplinaQuery } from "@/lib/queries";
+import {
+  SEGMENTOS,
+  configPorSegmento,
+  configsQuery,
+  turmasQuery,
+  turmaDisciplinaQuery,
+} from "@/lib/queries";
 import type { ItemRoteiro } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/admin/acompanhamento")({
@@ -18,18 +24,13 @@ export const Route = createFileRoute("/_authenticated/admin/acompanhamento")({
 });
 
 function Page() {
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
   const { data: turmas } = useQuery(turmasQuery);
   const { data: td } = useQuery(turmaDisciplinaQuery);
   const { data: roteiros } = useQuery({
-    queryKey: ["roteiros-admin", cfg?.etapa_atual, cfg?.tipo_avaliacao],
-    enabled: !!cfg,
+    queryKey: ["roteiros-admin"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("roteiros")
-        .select("*")
-        .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+      const { data, error } = await supabase.from("roteiros").select("*");
       if (error) throw error;
       return data;
     },
@@ -51,10 +52,18 @@ function Page() {
     (turmas ?? []).forEach((t) => map.set(t.id, { turma: t, disciplinas: [] }));
     (td ?? []).forEach((r) => {
       const d = r.disciplinas as unknown as { nome: string } | null;
+      const entry = map.get(r.turma_id);
+      if (!entry) return;
+      const cfg = configPorSegmento(cfgs, entry.turma.segmento);
       const rot = (roteiros ?? []).find(
-        (rt) => rt.turma_id === r.turma_id && rt.disciplina_id === r.disciplina_id,
+        (rt) =>
+          rt.turma_id === r.turma_id &&
+          rt.disciplina_id === r.disciplina_id &&
+          !!cfg &&
+          rt.etapa === cfg.etapa_atual &&
+          rt.tipo_avaliacao === cfg.tipo_avaliacao,
       );
-      map.get(r.turma_id)?.disciplinas.push({
+      entry.disciplinas.push({
         turma_disciplina_id: r.id,
         disciplina_id: r.disciplina_id,
         disciplina_nome: d?.nome ?? "",
@@ -65,16 +74,26 @@ function Page() {
     });
     map.forEach((v) => v.disciplinas.sort((a, b) => a.ordem - b.ordem));
     return Array.from(map.values()).filter((v) => v.disciplinas.length > 0);
-  }, [turmas, td, roteiros]);
+  }, [turmas, td, roteiros, cfgs]);
 
   async function exportPdf(
     turma: { id: string; nome: string; segmento: string },
     disciplinas: { disciplina_id: string; disciplina_nome: string }[],
   ) {
-    if (!cfg) return;
+    const cfg = configPorSegmento(cfgs, turma.segmento);
+    if (!cfg) {
+      toast.error("Configuração de etapa não definida para este segmento.");
+      return;
+    }
     setExportando(turma.id);
     try {
-      const enviados = (roteiros ?? []).filter((r) => r.turma_id === turma.id && r.status === "enviado");
+      const enviados = (roteiros ?? []).filter(
+        (r) =>
+          r.turma_id === turma.id &&
+          r.status === "enviado" &&
+          r.etapa === cfg.etapa_atual &&
+          r.tipo_avaliacao === cfg.tipo_avaliacao,
+      );
       if (enviados.length === 0) {
         toast.error("Nenhum roteiro enviado para esta turma.");
         return;
@@ -118,11 +137,18 @@ function Page() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card p-3 text-sm">
-        Etapa atual:{" "}
-        <strong>
-          {cfg?.etapa_atual}ª — {cfg?.tipo_avaliacao === "global" ? "Global" : "Parcial"}
-        </strong>
+      <div className="grid gap-2 rounded-lg border bg-card p-3 text-sm sm:grid-cols-3">
+        {SEGMENTOS.map((s) => {
+          const c = configPorSegmento(cfgs, s.valor);
+          return (
+            <div key={s.valor}>
+              <span className="text-muted-foreground">{s.label}: </span>
+              <strong>
+                {c ? `${c.etapa_atual}ª — ${c.tipo_avaliacao === "global" ? "Global" : "Parcial"}` : "—"}
+              </strong>
+            </div>
+          );
+        })}
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {porTurma.map(({ turma, disciplinas }) => {

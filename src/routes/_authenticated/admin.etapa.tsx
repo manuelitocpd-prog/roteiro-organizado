@@ -7,16 +7,75 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { configQuery } from "@/lib/queries";
+import { SEGMENTOS, configPorSegmento, configsQuery, type ConfigEtapa } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/admin/etapa")({
   head: () => ({ meta: [{ title: "Etapa atual — Admin" }] }),
   component: Page,
 });
 
+const fmt = (d: string | null) => {
+  if (!d) return "—";
+  const [y, m, dd] = d.split("-");
+  return `${dd}/${m}/${y}`;
+};
+
 function Page() {
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Resumo por segmento</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          {SEGMENTOS.map((s) => {
+            const c = configPorSegmento(cfgs, s.valor);
+            return (
+              <div key={s.valor} className="rounded border p-3 text-sm">
+                <p className="font-semibold">{s.label}</p>
+                <p className="text-muted-foreground">
+                  {c ? `${c.etapa_atual}ª Etapa — ${c.tipo_avaliacao === "global" ? "Global" : "Parcial"}` : "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Realização: {fmt(c?.data_inicio_realizacao ?? null)} a {fmt(c?.data_fim_realizacao ?? null)}
+                </p>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue={SEGMENTOS[0].valor}>
+        <TabsList>
+          {SEGMENTOS.map((s) => (
+            <TabsTrigger key={s.valor} value={s.valor}>
+              {s.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {SEGMENTOS.map((s) => (
+          <TabsContent key={s.valor} value={s.valor}>
+            <SegmentoForm label={s.label} cfg={configPorSegmento(cfgs, s.valor)} segmento={s.valor} />
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+
+function SegmentoForm({
+  label,
+  segmento,
+  cfg,
+}: {
+  label: string;
+  segmento: string;
+  cfg: ConfigEtapa | undefined;
+}) {
   const qc = useQueryClient();
   const [etapa, setEtapa] = useState(1);
   const [tipo, setTipo] = useState<"parcial" | "global">("parcial");
@@ -36,20 +95,26 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("configuracao_etapa")
-        .update({
-          etapa_atual: etapa,
-          tipo_avaliacao: tipo,
-          ano_letivo: ano,
-          data_inicio_realizacao: dIni || null,
-          data_fim_realizacao: dFim || null,
-        })
-        .eq("id", 1);
-      if (error) throw error;
+      const values = {
+        etapa_atual: etapa,
+        tipo_avaliacao: tipo,
+        ano_letivo: ano,
+        data_inicio_realizacao: dIni || null,
+        data_fim_realizacao: dFim || null,
+      };
+      if (cfg) {
+        const { error } = await supabase.from("configuracao_etapa").update(values).eq("id", cfg.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("configuracao_etapa")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .insert({ ...values, segmento } as any);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Configuração atualizada");
+      toast.success(`Configuração de ${label} atualizada`);
       qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -58,7 +123,7 @@ function Page() {
   return (
     <Card className="max-w-lg">
       <CardHeader>
-        <CardTitle>Etapa e tipo de avaliação</CardTitle>
+        <CardTitle>{label} — etapa e tipo de avaliação</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -94,18 +159,28 @@ function Page() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="dini">Início da realização</Label>
-            <Input id="dini" type="date" value={dIni} onChange={(e) => setDIni(e.target.value)} />
+            <Label htmlFor={`dini-${segmento}`}>Início da realização</Label>
+            <Input
+              id={`dini-${segmento}`}
+              type="date"
+              value={dIni}
+              onChange={(e) => setDIni(e.target.value)}
+            />
           </div>
           <div>
-            <Label htmlFor="dfim">Fim da realização</Label>
-            <Input id="dfim" type="date" value={dFim} onChange={(e) => setDFim(e.target.value)} />
+            <Label htmlFor={`dfim-${segmento}`}>Fim da realização</Label>
+            <Input
+              id={`dfim-${segmento}`}
+              type="date"
+              value={dFim}
+              onChange={(e) => setDFim(e.target.value)}
+            />
           </div>
         </div>
         <div className="rounded border bg-muted/40 p-3 text-xs text-muted-foreground">
-          O período de realização vale para toda a escola nesta etapa. Ao mudar a etapa ou o tipo,
-          os roteiros da configuração anterior ficam travados para os professores (só leitura).
-          Você, como admin, ainda pode editá-los.
+          Esta configuração vale apenas para as turmas de {label}. Ao mudar a etapa ou o tipo, os
+          roteiros da configuração anterior ficam travados para os professores (só leitura). Você,
+          como admin, ainda pode editá-los.
         </div>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           Salvar
@@ -114,4 +189,3 @@ function Page() {
     </Card>
   );
 }
-

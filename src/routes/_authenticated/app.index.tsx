@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { configQuery } from "@/lib/queries";
+import { configPorSegmento, configsQuery, segmentoLabel } from "@/lib/queries";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({ meta: [{ title: "Minhas disciplinas — Roteiros" }] }),
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/app/")({
 
 function Home() {
   const { professorId, isAdmin, loading } = useAuth();
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
   const { data: pdt } = useQuery({
     queryKey: ["pdt-me", professorId],
     enabled: !!professorId,
@@ -28,15 +28,13 @@ function Home() {
     },
   });
   const { data: roteiros } = useQuery({
-    queryKey: ["roteiros-me", professorId, cfg?.etapa_atual, cfg?.tipo_avaliacao],
-    enabled: !!professorId && !!cfg,
+    queryKey: ["roteiros-me", professorId],
+    enabled: !!professorId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("roteiros")
-        .select("id, disciplina_id, turma_id, status")
-        .eq("professor_id", professorId!)
-        .eq("etapa", cfg!.etapa_atual)
-        .eq("tipo_avaliacao", cfg!.tipo_avaliacao);
+        .select("id, disciplina_id, turma_id, status, etapa, tipo_avaliacao")
+        .eq("professor_id", professorId!);
       if (error) throw error;
       return data;
     },
@@ -45,16 +43,31 @@ function Home() {
   if (loading) return null;
   if (!professorId && isAdmin) return <Navigate to="/admin/acompanhamento" replace />;
 
+  const segmentosDoProfessor = Array.from(
+    new Set(
+      (pdt ?? [])
+        .map((v) => (v.turmas as unknown as { segmento: string } | null)?.segmento)
+        .filter((s): s is string => !!s),
+    ),
+  );
+
   const grouped = new Map<
     string,
     { disciplinaNome: string; turmas: { id: string; nome: string; turma_id: string; disciplina_id: string; status?: string }[] }
   >();
   (pdt ?? []).forEach((v) => {
     const dName = (v.disciplinas as unknown as { nome: string })?.nome ?? "";
-    const tName = (v.turmas as unknown as { nome: string })?.nome ?? "";
+    const turma = v.turmas as unknown as { nome: string; segmento: string } | null;
+    const tName = turma?.nome ?? "";
+    const cfg = configPorSegmento(cfgs, turma?.segmento);
     const g = grouped.get(v.disciplina_id) ?? { disciplinaNome: dName, turmas: [] };
     const rot = (roteiros ?? []).find(
-      (r) => r.disciplina_id === v.disciplina_id && r.turma_id === v.turma_id,
+      (r) =>
+        r.disciplina_id === v.disciplina_id &&
+        r.turma_id === v.turma_id &&
+        !!cfg &&
+        r.etapa === cfg.etapa_atual &&
+        r.tipo_avaliacao === cfg.tipo_avaliacao,
     );
     g.turmas.push({
       id: v.id,
@@ -69,20 +82,31 @@ function Home() {
   return (
     <div className="space-y-6">
       <section className="rounded-lg border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Etapa atual
-            </div>
-            <div className="text-lg font-semibold">
-              {cfg ? `${cfg.etapa_atual}ª Etapa — ${cfg.tipo_avaliacao === "global" ? "Global" : "Parcial"}` : "..."}
-            </div>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            Ano letivo {cfg?.ano_letivo ?? ""}
-          </Badge>
+        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Etapa atual
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {segmentosDoProfessor.map((seg) => {
+            const c = configPorSegmento(cfgs, seg);
+            return (
+              <div key={seg} className="flex items-center justify-between gap-2 rounded border p-2">
+                <div>
+                  <div className="text-xs text-muted-foreground">{segmentoLabel(seg)}</div>
+                  <div className="font-semibold">
+                    {c
+                      ? `${c.etapa_atual}ª Etapa — ${c.tipo_avaliacao === "global" ? "Global" : "Parcial"}`
+                      : "Não configurada"}
+                  </div>
+                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {c?.ano_letivo ?? ""}
+                </Badge>
+              </div>
+            );
+          })}
         </div>
       </section>
+
 
       {(!pdt || pdt.length === 0) && (
         <Card>

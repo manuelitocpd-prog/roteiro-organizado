@@ -21,6 +21,7 @@ export type Database = {
           data_inicio_realizacao: string | null
           etapa_atual: number
           id: number
+          segmento: string
           tipo_avaliacao: Database["public"]["Enums"]["tipo_avaliacao_enum"]
           updated_at: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           data_inicio_realizacao?: string | null
           etapa_atual: number
           id: number
+          segmento: string
           tipo_avaliacao: Database["public"]["Enums"]["tipo_avaliacao_enum"]
           updated_at?: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           data_inicio_realizacao?: string | null
           etapa_atual?: number
           id?: number
+          segmento?: string
           tipo_avaliacao?: Database["public"]["Enums"]["tipo_avaliacao_enum"]
           updated_at?: string
         }

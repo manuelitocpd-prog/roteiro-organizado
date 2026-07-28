@@ -13,18 +13,43 @@ export const qk = {
   roteiros: (filter?: string) => ["roteiros", filter ?? "all"] as const,
 };
 
-export const configQuery = queryOptions({
+export type ConfigEtapa = {
+  id: number;
+  segmento: string;
+  etapa_atual: number;
+  tipo_avaliacao: "parcial" | "global";
+  ano_letivo: number;
+  data_inicio_realizacao: string | null;
+  data_fim_realizacao: string | null;
+};
+
+/** Segmentos oficiais (valor no banco -> rótulo exibido) */
+export const SEGMENTOS: { valor: string; label: string }[] = [
+  { valor: "Educação Infantil", label: "Educação Infantil" },
+  { valor: "Fundamental I", label: "Ensino Fundamental I" },
+  { valor: "Fundamental II", label: "Ensino Fundamental II" },
+];
+
+export const segmentoLabel = (valor?: string | null) =>
+  SEGMENTOS.find((s) => s.valor === valor)?.label ?? valor ?? "";
+
+export const configsQuery = queryOptions({
   queryKey: qk.config,
   queryFn: async () => {
     const { data, error } = await supabase
       .from("configuracao_etapa")
       .select("*")
-      .eq("id", 1)
-      .single();
+      .order("id");
     if (error) throw error;
-    return data;
+    return (data ?? []) as unknown as ConfigEtapa[];
   },
 });
+
+export const configPorSegmento = (
+  cfgs: ConfigEtapa[] | undefined,
+  segmento: string | null | undefined,
+): ConfigEtapa | undefined => cfgs?.find((c) => c.segmento === segmento);
+
 
 export const turmasQuery = queryOptions({
   queryKey: qk.turmas,

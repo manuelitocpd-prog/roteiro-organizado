@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { configQuery } from "@/lib/queries";
+import { configPorSegmento, configsQuery } from "@/lib/queries";
 import type { ItemRoteiro } from "@/lib/types";
 import { itensToHtml, htmlToItens, isHtmlPayload } from "@/lib/roteiro-html";
 
@@ -32,7 +32,7 @@ function Editor() {
   const qc = useQueryClient();
   const navigate = useNavigate();
 
-  const { data: cfg } = useQuery(configQuery);
+  const { data: cfgs } = useQuery(configsQuery);
   const { data: meta } = useQuery({
     queryKey: ["roteiro-meta", disciplinaId, turmaId],
     queryFn: async () => {
@@ -43,6 +43,7 @@ function Editor() {
       return { disciplina: d.data, turma: t.data };
     },
   });
+  const cfg = configPorSegmento(cfgs, meta?.turma?.segmento);
 
   const { data: profsVinculados } = useQuery({
     queryKey: ["pdt-professores", disciplinaId, turmaId],
