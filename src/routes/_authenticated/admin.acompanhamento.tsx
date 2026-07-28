@@ -13,7 +13,6 @@ import {
   SEGMENTOS,
   configPorSegmento,
   configsQuery,
-  segmentoLabel,
   turmasQuery,
   turmaDisciplinaQuery,
 } from "@/lib/queries";
