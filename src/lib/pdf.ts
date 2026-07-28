@@ -267,17 +267,30 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
         doc.addImage(logo, "PNG", colX + PAD, headerY, logoW, logoH);
       } catch {}
       const textX = colX + PAD + logoW + 3;
+      const availW = colX + COL_W - PAD - textX;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("COLÉGIO MANUELITO", textX, headerY + 4.5);
+      doc.setFontSize(11.5);
+      doc.text("COLÉGIO MANUELITO", textX, headerY + 4.8);
+
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(args.segmento.toUpperCase(), textX, headerY + 9);
-      doc.text(String(args.anoLetivo), textX, headerY + 13);
+      const seg = args.segmento.toUpperCase();
+      let segPt = 9;
+      doc.setFontSize(segPt);
+      if (doc.getTextWidth(seg) <= availW) {
+        doc.text(seg, textX, headerY + 9.4);
+        doc.text(String(args.anoLetivo), headerY ? textX : textX, headerY + 13.4);
+      } else {
+        let segLines = doc.splitTextToSize(seg, availW) as string[];
+        if (segLines.length > 2) {
+          segPt = 8;
+          doc.setFontSize(segPt);
+          segLines = doc.splitTextToSize(seg, availW) as string[];
+        }
+        doc.text(segLines[0] ?? "", textX, headerY + 9.4);
+        if (segLines[1]) doc.text(segLines[1], textX, headerY + 13.4);
+      }
     }
-    // separator under header
-    doc.setLineWidth(0.2);
-    doc.line(colX + PAD, TOP + HEADER_H - 2, colX + COL_W - PAD, TOP + HEADER_H - 2);
+
 
     let contentY = TOP + HEADER_H;
 
