@@ -1,43 +1,38 @@
 ## Objetivo
 
-Permitir que o admin salve/envie roteiros **em nome de um professor**, escolhendo qual professor entre os vinculados àquela disciplina+turma.
+Ajustar o gerador de PDF (`src/lib/pdf.ts`) para o cabeçalho e o espaçamento entre disciplinas ficarem iguais aos modelos anexados.
 
-## Mudanças
+## Mudanças em `src/lib/pdf.ts`
 
-### 1. `src/routes/_authenticated/app.roteiro.$disciplinaId.$turmaId.tsx`
+### 1. Remover a linha divisória do cabeçalho
+Em `drawColumn`, apagar o bloco:
+```
+doc.setLineWidth(0.2);
+doc.line(colX + PAD, TOP + HEADER_H - 2, colX + COL_W - PAD, TOP + HEADER_H - 2);
+```
+O `HEADER_H` continua igual, então o espaço em branco abaixo do cabeçalho é preservado.
 
-- Adicionar query nova (só quando `isAdmin`) que busca em `professor_disciplina_turma` os professores vinculados àquela `disciplina_id` + `turma_id`, com join em `professores(id, nome)`.
-- Novo estado local `selectedProfessorId`.
-- Renderizar, **apenas para admin**, um `Select` (shadcn) no topo do card com o label "Enviando em nome de" e as opções vindas da query. Se houver só um professor vinculado, pré-seleciona; se não houver nenhum, mostra aviso "Nenhum professor vinculado a esta disciplina/turma" e desabilita salvar.
-- Quando `existing` (roteiro já salvo) carrega, se admin, inicializar `selectedProfessorId` com `existing.professor_id`.
-- No `save.mutationFn`:
-  - `const effectiveProfessorId = isAdmin ? selectedProfessorId : professorId;`
-  - Se `!effectiveProfessorId`, `throw new Error("Selecione o professor.")`.
-  - Usar `effectiveProfessorId` no `professor_id` do payload (tanto insert quanto update).
-- Desabilitar os botões "Salvar rascunho" / "Enviar roteiro" quando admin sem professor selecionado.
+### 2. Cabeçalho: nome maior + quebra inteligente do segmento
+- "COLÉGIO MANUELITO" passa de 10pt para ~11.5pt (bold).
+- Calcular a largura disponível: `availW = colX + COL_W - PAD - textX`.
+- Medir o segmento em maiúsculas com `doc.getTextWidth` a 9pt:
+  - **Cabe em uma linha:** linha 2 = segmento, linha 3 = ano letivo (comportamento atual).
+  - **Não cabe:** usar `doc.splitTextToSize(segmento, availW)` e desenhar as duas primeiras linhas nas posições 2 e 3, **sem** o ano letivo.
+- Se o segmento quebrado gerar mais de 2 linhas, reduzir levemente a fonte (ex.: 8pt) para caber em duas.
 
-### 2. Query para carregar `existing` (admin)
+### 3. Espaçamento entre disciplinas
+Em `buildBlocksForDisciplina`, o espaçador final passa de `height: 3` para `height: 7`.
 
-Hoje o `queryFn` de `existing` filtra por disciplina+turma+etapa+tipo e usa `maybeSingle()`. Para professor comum isso está correto (RLS restringe aos próprios). Para admin, o admin vê todos — se dois professores enviaram roteiro para a mesma disciplina/turma/etapa, `maybeSingle` quebra. Ajuste:
-- Quando `isAdmin`, filtrar também por `professor_id = selectedProfessorId` (recarregando a query ao trocar de professor via inclusão do id na `queryKey`).
-- Enquanto o admin não escolhe professor, não carrega roteiro existente (fica como "novo").
+## Verificação
 
-### 3. RLS de `roteiros`
+Gerar PDFs de teste para uma turma de cada segmento (Infantil, Fundamental II, Fundamental I / 5º ano), converter as páginas em imagem e comparar visualmente com os três modelos anexados — conferindo que:
+- não há linha sob o cabeçalho;
+- "EDUCAÇÃO INFANTIL" quebra em duas linhas e não mostra o ano;
+- "FUNDAMENTAL II" fica em uma linha e mostra o ano;
+- o respiro entre blocos de disciplina é claramente maior que o entrelinhas.
 
-Verificar que as policies de INSERT/UPDATE permitem admin gravar com `professor_id` diferente do seu próprio `auth.uid()`. Se as policies atuais usam `professor_id = current_professor_id()` sem cláusula OR para `has_role(auth.uid(),'admin')`, adicionar essa cláusula via migração. (Vou confirmar lendo as policies antes de escrever a migração — se já existir cláusula admin, pulo esta etapa.)
-
-### 4. Trigger `roteiros_before_update`
-
-Já existe cláusula `IF NOT public.has_role(auth.uid(),'admin')`, então admin pode atualizar mesmo se a etapa mudou. OK, sem mudança.
+Ajustar os números (tamanho da fonte e altura do espaçador) até bater com o modelo.
 
 ## Fora de escopo
 
-- Não muda schema de `roteiros` (professor_id continua NOT NULL, correto).
-- Não muda editor para professor comum (mesmo comportamento).
-- Não muda PDF nem acompanhamento.
-
-## Detalhes técnicos
-
-- Novo `queryKey` do seletor: `["pdt-professores", disciplinaId, turmaId]`.
-- Novo `queryKey` do existing quando admin: inclui `selectedProfessorId`.
-- UI usa `Select` do shadcn já disponível no projeto.
+Nenhuma mudança em banco de dados, telas ou conteúdo dos roteiros.
