@@ -1,38 +1,29 @@
 ## Objetivo
 
-Ajustar o gerador de PDF (`src/lib/pdf.ts`) para o cabeçalho e o espaçamento entre disciplinas ficarem iguais aos modelos anexados.
+Hoje existe **uma única configuração global** (etapa, tipo de avaliação, ano letivo e período de realização) na tabela `configuracao_etapa` (1 linha, id=1). Vamos passar a ter **uma configuração por segmento**, para que cada segmento possa ter datas de prova (e até etapa/tipo) diferentes.
 
-## Mudanças em `src/lib/pdf.ts`
+Segmentos existentes nas turmas: `Educação Infantil`, `Fundamental I`, `Fundamental II` (exibidos na tela como "Educação Infantil", "Ensino Fundamental I", "Ensino Fundamental II").
 
-### 1. Remover a linha divisória do cabeçalho
-Em `drawColumn`, apagar o bloco:
-```
-doc.setLineWidth(0.2);
-doc.line(colX + PAD, TOP + HEADER_H - 2, colX + COL_W - PAD, TOP + HEADER_H - 2);
-```
-O `HEADER_H` continua igual, então o espaço em branco abaixo do cabeçalho é preservado.
+## Banco de dados (migração)
 
-### 2. Cabeçalho: nome maior + quebra inteligente do segmento
-- "COLÉGIO MANUELITO" passa de 10pt para ~11.5pt (bold).
-- Calcular a largura disponível: `availW = colX + COL_W - PAD - textX`.
-- Medir o segmento em maiúsculas com `doc.getTextWidth` a 9pt:
-  - **Cabe em uma linha:** linha 2 = segmento, linha 3 = ano letivo (comportamento atual).
-  - **Não cabe:** usar `doc.splitTextToSize(segmento, availW)` e desenhar as duas primeiras linhas nas posições 2 e 3, **sem** o ano letivo.
-- Se o segmento quebrado gerar mais de 2 linhas, reduzir levemente a fonte (ex.: 8pt) para caber em duas.
+1. Adicionar coluna `segmento` em `configuracao_etapa`, com índice único por segmento.
+2. Migrar a linha atual (etapa 3, global, 21/09–25/09) para os três segmentos, criando as três linhas com os mesmos valores atuais — nada muda visualmente até o admin editar.
+3. Atualizar as funções de gatilho `roteiros_before_insert` e `roteiros_before_update`: em vez de ler sempre a linha id=1, elas passam a ler a configuração do segmento da turma do roteiro (via `turmas.segmento`). A regra de travamento (roteiro fica só-leitura para o professor quando etapa/tipo mudam) continua igual, mas agora por segmento.
+4. Manter as permissões atuais: leitura para qualquer usuário autenticado, escrita apenas para admin.
 
-### 3. Espaçamento entre disciplinas
-Em `buildBlocksForDisciplina`, o espaçador final passa de `height: 3` para `height: 7`.
+## Tela "Etapa atual" (admin)
 
-## Verificação
+- Passa a ter 3 abas: Educação Infantil / Ensino Fundamental I / Ensino Fundamental II.
+- Cada aba tem o mesmo formulário de hoje (etapa, tipo de avaliação, ano letivo, início e fim da realização) e um botão "Salvar" que grava só aquele segmento.
+- Um resumo no topo mostrando, lado a lado, a etapa/tipo/período de cada segmento, para conferência rápida.
 
-Gerar PDFs de teste para uma turma de cada segmento (Infantil, Fundamental II, Fundamental I / 5º ano), converter as páginas em imagem e comparar visualmente com os três modelos anexados — conferindo que:
-- não há linha sob o cabeçalho;
-- "EDUCAÇÃO INFANTIL" quebra em duas linhas e não mostra o ano;
-- "FUNDAMENTAL II" fica em uma linha e mostra o ano;
-- o respiro entre blocos de disciplina é claramente maior que o entrelinhas.
+## Onde a configuração é consumida
 
-Ajustar os números (tamanho da fonte e altura do espaçador) até bater com o modelo.
+- **Painel do professor** (`app.index`) e **editor de roteiro**: passam a mostrar a etapa/tipo/período do segmento da turma daquela disciplina, em vez do valor global.
+- **Acompanhamento (admin)** e **geração de PDF**: o cabeçalho de cada turma usa as datas do segmento daquela turma; o filtro de roteiros da etapa atual também passa a considerar a etapa do segmento correspondente.
 
-## Fora de escopo
+## Detalhes técnicos
 
-Nenhuma mudança em banco de dados, telas ou conteúdo dos roteiros.
+- `src/lib/queries.ts`: `configQuery` retorna a lista de configurações (todas as linhas) em vez de uma única; adiciono um helper `configPorSegmento(cfgs, segmento)`.
+- Arquivos afetados: `src/lib/queries.ts`, `src/routes/_authenticated/admin.etapa.tsx`, `admin.acompanhamento.tsx`, `app.index.tsx`, `app.roteiro.$disciplinaId.$turmaId.tsx`.
+- `src/lib/pdf.ts` não muda de assinatura — continua recebendo as datas por parâmetro, agora vindas do segmento.
