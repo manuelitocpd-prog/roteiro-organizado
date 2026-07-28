@@ -53,10 +53,18 @@ function Page() {
     (turmas ?? []).forEach((t) => map.set(t.id, { turma: t, disciplinas: [] }));
     (td ?? []).forEach((r) => {
       const d = r.disciplinas as unknown as { nome: string } | null;
+      const entry = map.get(r.turma_id);
+      if (!entry) return;
+      const cfg = configPorSegmento(cfgs, entry.turma.segmento);
       const rot = (roteiros ?? []).find(
-        (rt) => rt.turma_id === r.turma_id && rt.disciplina_id === r.disciplina_id,
+        (rt) =>
+          rt.turma_id === r.turma_id &&
+          rt.disciplina_id === r.disciplina_id &&
+          !!cfg &&
+          rt.etapa === cfg.etapa_atual &&
+          rt.tipo_avaliacao === cfg.tipo_avaliacao,
       );
-      map.get(r.turma_id)?.disciplinas.push({
+      entry.disciplinas.push({
         turma_disciplina_id: r.id,
         disciplina_id: r.disciplina_id,
         disciplina_nome: d?.nome ?? "",
@@ -67,16 +75,26 @@ function Page() {
     });
     map.forEach((v) => v.disciplinas.sort((a, b) => a.ordem - b.ordem));
     return Array.from(map.values()).filter((v) => v.disciplinas.length > 0);
-  }, [turmas, td, roteiros]);
+  }, [turmas, td, roteiros, cfgs]);
 
   async function exportPdf(
     turma: { id: string; nome: string; segmento: string },
     disciplinas: { disciplina_id: string; disciplina_nome: string }[],
   ) {
-    if (!cfg) return;
+    const cfg = configPorSegmento(cfgs, turma.segmento);
+    if (!cfg) {
+      toast.error("Configuração de etapa não definida para este segmento.");
+      return;
+    }
     setExportando(turma.id);
     try {
-      const enviados = (roteiros ?? []).filter((r) => r.turma_id === turma.id && r.status === "enviado");
+      const enviados = (roteiros ?? []).filter(
+        (r) =>
+          r.turma_id === turma.id &&
+          r.status === "enviado" &&
+          r.etapa === cfg.etapa_atual &&
+          r.tipo_avaliacao === cfg.tipo_avaliacao,
+      );
       if (enviados.length === 0) {
         toast.error("Nenhum roteiro enviado para esta turma.");
         return;
