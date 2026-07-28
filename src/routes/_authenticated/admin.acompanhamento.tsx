@@ -9,7 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { generateRoteirosPdf, pdfFilename } from "@/lib/pdf";
-import { configQuery, turmasQuery, turmaDisciplinaQuery } from "@/lib/queries";
+import {
+  SEGMENTOS,
+  configPorSegmento,
+  configsQuery,
+  segmentoLabel,
+  turmasQuery,
+  turmaDisciplinaQuery,
+} from "@/lib/queries";
 import type { ItemRoteiro } from "@/lib/types";
 
 export const Route = createFileRoute("/_authenticated/admin/acompanhamento")({
