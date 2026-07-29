@@ -316,7 +316,7 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
         doc.setFontSize(10);
         doc.text(l3, cx - doc.getTextWidth(l3) / 2, contentY + titleLh * 3);
       }
-      contentY += titleLh * 3 + 1;
+      contentY += titleLh * 3 + 6;
     }
 
     let y = contentY;
