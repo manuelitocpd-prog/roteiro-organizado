@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Circle, Download, FileEdit } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import logoAsset from "@/assets/logo-manuelito.png.asset.json";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,7 +119,7 @@ function Page() {
         dataFim: cfg.data_fim_realizacao ?? null,
         anoLetivo: cfg.ano_letivo,
         roteiros: ordered,
-        logoUrl: logoAsset.url,
+        logoUrl: "/logo-manuelito-pdf.png",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
