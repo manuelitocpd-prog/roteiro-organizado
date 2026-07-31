@@ -260,36 +260,39 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
 
     // header
     const headerY = TOP + 2;
+    const logoH = 14;
+    let logoW = 0;
     if (logo) {
-      const logoH = 14;
       const ratio = logo.width / logo.height;
-      const logoW = logoH * ratio;
+      logoW = logoH * ratio;
       try {
         doc.addImage(logo, "PNG", colX + PAD, headerY, logoW, logoH);
       } catch {}
-      const textX = colX + PAD + logoW + 3;
-      const availW = colX + COL_W - PAD - textX;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11.5);
-      doc.text("COLÉGIO MANUELITO", textX, headerY + 4.8);
+    }
+    // O texto do cabeçalho é desenhado sempre, mesmo que o logo não carregue
+    // (antes, texto e logo ficavam presos na mesma condição e sumiam juntos).
+    const textX = colX + PAD + logoW + (logoW > 0 ? 3 : 0);
+    const availW = colX + COL_W - PAD - textX;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11.5);
+    doc.text("COLÉGIO MANUELITO", textX, headerY + 4.8);
 
-      doc.setFont("helvetica", "normal");
-      const seg = args.segmento.toUpperCase();
-      let segPt = 9;
-      doc.setFontSize(segPt);
-      if (doc.getTextWidth(seg) <= availW) {
-        doc.text(seg, textX, headerY + 9.4);
-        doc.text(String(args.anoLetivo), textX, headerY + 13.4);
-      } else {
-        let segLines = doc.splitTextToSize(seg, availW) as string[];
-        if (segLines.length > 2) {
-          segPt = 8;
-          doc.setFontSize(segPt);
-          segLines = doc.splitTextToSize(seg, availW) as string[];
-        }
-        doc.text(segLines[0] ?? "", textX, headerY + 9.4);
-        if (segLines[1]) doc.text(segLines[1], textX, headerY + 13.4);
+    doc.setFont("helvetica", "normal");
+    const seg = args.segmento.toUpperCase();
+    let segPt = 9;
+    doc.setFontSize(segPt);
+    if (doc.getTextWidth(seg) <= availW) {
+      doc.text(seg, textX, headerY + 9.4);
+      doc.text(String(args.anoLetivo), textX, headerY + 13.4);
+    } else {
+      let segLines = doc.splitTextToSize(seg, availW) as string[];
+      if (segLines.length > 2) {
+        segPt = 8;
+        doc.setFontSize(segPt);
+        segLines = doc.splitTextToSize(seg, availW) as string[];
       }
+      doc.text(segLines[0] ?? "", textX, headerY + 9.4);
+      if (segLines[1]) doc.text(segLines[1], textX, headerY + 13.4);
     }
 
 
