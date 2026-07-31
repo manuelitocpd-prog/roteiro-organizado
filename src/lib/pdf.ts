@@ -298,6 +298,11 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
 
     let contentY = TOP + HEADER_H;
 
+    // linha divisória entre o cabeçalho (logo + escola) e o restante do conteúdo
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.6);
+    doc.line(colX, TOP + HEADER_H - 4, colX + COL_W, TOP + HEADER_H - 4);
+
     // title on page 1
     if (pageIdx === 0) {
       const tipoTxt = args.tipoAvaliacao === "global" ? "GLOBAIS" : "PARCIAIS";
