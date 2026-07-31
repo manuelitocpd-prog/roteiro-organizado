@@ -36,7 +36,7 @@ const CONTENT_W = COL_W - PAD * 2;
 const TOP = 8;
 const BOT = 8;
 const COL_H = PAGE_H - TOP - BOT;
-const HEADER_H = 20;
+const HEADER_H = 26;
 const TITLE_H_LINES = 3;
 
 // helvetica line-height helper (font size in pt → mm)
@@ -298,10 +298,13 @@ export async function generateRoteirosPdf(args: PdfArgs): Promise<Blob> {
 
     let contentY = TOP + HEADER_H;
 
-    // linha divisória entre o cabeçalho (logo + escola) e o restante do conteúdo
+    // linha divisória centralizada no espaço entre o fim do cabeçalho (logo/texto)
+    // e o início do bloco de título abaixo
+    const headerContentBottom = headerY + logoH; // fim do logo/texto
+    const lineY = headerContentBottom + (TOP + HEADER_H - headerContentBottom) / 2;
     doc.setDrawColor(0);
     doc.setLineWidth(0.6);
-    doc.line(colX, TOP + HEADER_H - 4, colX + COL_W, TOP + HEADER_H - 4);
+    doc.line(colX, lineY, colX + COL_W, lineY);
 
     // title on page 1
     if (pageIdx === 0) {
